@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid #FF5A36;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-ink text-paper font-body font-semibold px-5 py-2.5 rounded-card
+           hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-transparent text-ink font-semibold px-5 py-2.5 rounded-card border border-line
+           hover:border-ink transition;
+  }
+  .input-field {
+    @apply w-full border border-line rounded-card px-4 py-2.5 bg-white
+           focus:border-ink outline-none transition text-sm;
+  }
+  .card {
+    @apply bg-white border border-line rounded-card;
+  }
+}

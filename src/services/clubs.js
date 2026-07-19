@@ -1,0 +1,28 @@
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { db } from '../firebase/config';
+
+export async function getClub(clubId) {
+  const snap = await getDoc(doc(db, 'clubs', clubId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Batch-fetches multiple clubs by id and returns a { clubId: club } map.
+ * Firestore has no join, so the Explore feed uses this once per page load
+ * against the unique clubIds present in the current batch of events,
+ * rather than fetching a club doc per event card.
+ */
+export async function getClubsByIds(clubIds) {
+  const uniqueIds = [...new Set(clubIds)];
+  const results = await Promise.all(uniqueIds.map((id) => getClub(id)));
+  const map = {};
+  results.forEach((club) => {
+    if (club) map[club.id] = club;
+  });
+  return map;
+}
+
+export async function listAllClubs() {
+  const snap = await getDocs(collection(db, 'clubs'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}

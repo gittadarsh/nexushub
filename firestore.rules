@@ -1,0 +1,154 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Admin identity ──────────────────────────────────────────────
+    // Replace with the exact email you log into NexusHub with. This is
+    // what actually locks down /admin/clubs — the page itself has no
+    // extra gating in the app code, so this rule IS the security boundary.
+    function isAdmin() {
+      return request.auth != null &&
+             request.auth.token.email == 'adarsh.24b0101379@abes.ac.in';
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── users/{uid} ──────────────────────────────────────────────────
+    // Own doc readable/writable by the user themselves. Admin can also
+    // write it (needed to set clubId on approval).
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if false;
+    }
+
+    // ── students/{uid} ───────────────────────────────────────────────
+    // Only the student themselves can read/write their own profile —
+    // this is where phone number and roll number live, so this is the
+    // single most important rule for protecting personal data.
+    match /students/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── clubApplications/{id} ────────────────────────────────────────
+    // Anyone signed in can submit one (for themselves). Only the
+    // requester can read their own application's status; only the admin
+    // can read the full list or change status.
+    match /clubApplications/{id} {
+      allow create: if isSignedIn() && request.resource.data.requestedByUid == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.requestedByUid == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ── clubs/{id} ───────────────────────────────────────────────────
+    // Readable by any signed-in user (students need this to browse).
+    // Only the admin can create a club (via the one-click approval flow).
+    // A club's own admin(s) can update it later (Phase 2 dashboard).
+    // Any signed-in student can update ONLY subscriberCount (the
+    // subscribe/unsubscribe button) — nothing else.
+    match /clubs/{id} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid in resource.data.adminUids)
+        || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount']));
+      allow delete: if false;
+    }
+
+    // ── events/{id} ──────────────────────────────────────────────────
+    // Readable by any signed-in user. Only that club's own admin(s) can
+    // create/edit an event's real content. Any signed-in student can
+    // update ONLY registeredCount (via the registration flow) or
+    // likeCount (via the like button) — same self-serve-counter shape
+    // as clubs.subscriberCount above, and the same known limitation:
+    // likeCount is UI-hidden from students, not truly field-level
+    // locked down (it rides on the same event doc students can already
+    // read in full).
+    match /events/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.adminUids;
+      allow update: if (isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.adminUids)
+        || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['registeredCount']))
+        || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount']));
+      allow delete: if false;
+    }
+
+    // ── registrations/{id} ───────────────────────────────────────────
+    // A student can create/read/update only their own registration.
+    // (Club-side visibility into who registered is a Phase 2 dashboard
+    // feature — not yet needed here, so not opened up broadly.)
+    match /registrations/{id} {
+      allow create: if isSignedIn() && request.resource.data.studentUid == request.auth.uid;
+      allow read, update: if isSignedIn() && resource.data.studentUid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ── teamFinderPosts/{id} ─────────────────────────────────────────
+    // Readable by any signed-in user (students browsing an event's
+    // team-finder need to see everyone's cards). Only the post's own
+    // author can create/edit their own card.
+    match /teamFinderPosts/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.studentUid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.studentUid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ── teamFinderThreads/{id} + messages subcollection ─────────────
+    // Only the two participants of a thread can read it or send
+    // messages into it — this is the actual privacy boundary for DMs.
+    match /teamFinderThreads/{threadId} {
+      allow read: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participantUids);
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantUids;
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participantUids
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessageAt', 'lastMessageSenderUid', 'lastMessageText', 'readUids']);
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && request.auth.uid in
+          get(/databases/$(database)/documents/teamFinderThreads/$(threadId)).data.participantUids;
+        allow create: if isSignedIn()
+          && request.resource.data.senderUid == request.auth.uid
+          && request.auth.uid in get(/databases/$(database)/documents/teamFinderThreads/$(threadId)).data.participantUids;
+      }
+    }
+
+    // ── doubtThreads/{id} + messages subcollection ───────────────────
+    // Same shape as teamFinderThreads (a private 1:1 thread scoped to an
+    // event), kept in a separate collection so team-finder chats and
+    // doubt-resolution chats stay logically distinct even though they
+    // share the same underlying client code.
+    match /doubtThreads/{threadId} {
+      allow read: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participantUids);
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantUids;
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participantUids
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessageAt', 'lastMessageSenderUid', 'lastMessageText', 'readUids']);
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && request.auth.uid in
+          get(/databases/$(database)/documents/doubtThreads/$(threadId)).data.participantUids;
+        allow create: if isSignedIn()
+          && request.resource.data.senderUid == request.auth.uid
+          && request.auth.uid in get(/databases/$(database)/documents/doubtThreads/$(threadId)).data.participantUids;
+      }
+    }
+
+    // ── reports/{id} ─────────────────────────────────────────────────
+    // Anyone signed in can file a report. Only the admin can read them.
+    match /reports/{id} {
+      allow create: if isSignedIn() && request.resource.data.reporterUid == request.auth.uid;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+  }
+}
