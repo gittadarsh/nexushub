@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Bell, BellRing, Heart } from 'lucide-react';
+import { Bell, BellRing, Heart, Users } from 'lucide-react';
 import { getEvent, computeEventStatus } from '../../services/events';
 import { getClub } from '../../services/clubs';
 import {
@@ -27,6 +27,10 @@ export default function EventDetail() {
   const [registering, setRegistering] = useState(false);
   const [showProfileGate, setShowProfileGate] = useState(false);
 
+  // For team events: null = hasn't chosen yet, 'full' = filling the team
+  // form, 'solo' = registering alone to find teammates via team-finder.
+  const [teamChoice, setTeamChoice] = useState(null);
+
   // Team registration form state
   const [teamName, setTeamName] = useState('');
   const [members, setMembers] = useState([]);
@@ -44,7 +48,6 @@ export default function EventDetail() {
         const reg = await getStudentRegistration(firebaseUser.uid, eventId);
         setRegistration(reg);
         if (!reg && evt.teamSize > 1) {
-          // Prefill the leader's own slot; the rest start blank.
           const blankSlots = Array.from({ length: evt.teamSize - 1 }, () => ({ name: '', rollNo: '' }));
           setMembers([{ name: firebaseUser.displayName || '', rollNo: '' }, ...blankSlots]);
         }
@@ -67,8 +70,7 @@ export default function EventDetail() {
     try {
       await toggleLike(eventId);
     } catch (err) {
-      // Like is a soft, low-stakes action — fail silently rather than
-      // interrupting the page with an error banner.
+      // Like is a soft, low-stakes action — fail silently.
     }
   }
 
@@ -146,6 +148,7 @@ export default function EventDetail() {
     try {
       await cancelRegistration(registration.id, eventId);
       setRegistration(null);
+      setTeamChoice(null);
       setEvent((prev) => ({ ...prev, registeredCount: Math.max((prev.registeredCount || 1) - 1, 0) }));
     } catch (err) {
       setRegError("Couldn't cancel — try again.");
@@ -293,6 +296,14 @@ export default function EventDetail() {
                   <button className="btn-primary w-full opacity-90" disabled>
                     ✓ Registered{registration.isTeam && registration.teamName ? ` — Team "${registration.teamName}"` : ''}
                   </button>
+                  {isTeamEvent && (
+                    <Link
+                      to={`/events/${eventId}/team-finder`}
+                      className="btn-secondary w-full mt-2 flex items-center justify-center gap-1.5 text-sm"
+                    >
+                      <Users size={14} /> Find a team
+                    </Link>
+                  )}
                   <button
                     onClick={handleCancelClick}
                     disabled={registering}
@@ -302,8 +313,25 @@ export default function EventDetail() {
                   </button>
                 </>
               ) : isTeamEvent ? (
-                canRegister ? (
+                !canRegister ? (
+                  <button disabled className="btn-primary w-full opacity-50 cursor-not-allowed">
+                    Registration closed
+                  </button>
+                ) : teamChoice === null ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold mb-1">This event needs a team of {event.teamSize}.</p>
+                    <button onClick={() => setTeamChoice('full')} className="btn-primary w-full">
+                      I have my full team — register everyone
+                    </button>
+                    <button onClick={handleRegisterClick} disabled={registering} className="btn-secondary w-full flex items-center justify-center gap-1.5">
+                      <Users size={14} /> I don't have a team yet — find teammates
+                    </button>
+                  </div>
+                ) : (
                   <form onSubmit={handleTeamRegister} className="space-y-3">
+                    <button type="button" onClick={() => setTeamChoice(null)} className="text-xs text-muted underline mb-1">
+                      ← Back
+                    </button>
                     <p className="text-sm font-semibold">Register your team ({event.teamSize} members)</p>
                     <input
                       className="input-field"
@@ -331,10 +359,6 @@ export default function EventDetail() {
                       {registering ? 'Registering…' : 'Register team'}
                     </button>
                   </form>
-                ) : (
-                  <button disabled className="btn-primary w-full opacity-50 cursor-not-allowed">
-                    Registration closed
-                  </button>
                 )
               ) : (
                 <>
