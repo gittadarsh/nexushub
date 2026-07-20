@@ -1,4 +1,4 @@
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 export async function getClub(clubId) {
@@ -25,4 +25,14 @@ export async function getClubsByIds(clubIds) {
 export async function listAllClubs() {
   const snap = await getDocs(collection(db, 'clubs'));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Club-side: update the "about" profile fields — logo, bio, achievements,
+ * leadership, gallery. Firestore rules already allow a club's own
+ * adminUids to update any field on their club doc, so no rule change
+ * needed here.
+ */
+export async function updateClubProfile(clubId, updates) {
+  await updateDoc(doc(db, 'clubs', clubId), updates);
 }

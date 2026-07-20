@@ -24,6 +24,7 @@ export default function TeamFinder() {
   const [myPost, setMyPost] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const [formType, setFormType] = useState('need_teammates');
   const [formMessage, setFormMessage] = useState('');
@@ -32,25 +33,31 @@ export default function TeamFinder() {
   const [chatWith, setChatWith] = useState(null); // { uid, name }
 
   async function load() {
-    const evt = await getEvent(eventId);
-    setEvent(evt);
-    if (!firebaseUser || !evt) return;
+    setLoadError('');
+    try {
+      const evt = await getEvent(eventId);
+      setEvent(evt);
+      if (!firebaseUser || !evt) return;
 
-    const reg = await getMyRegistration(firebaseUser.uid, eventId);
-    setIsRegistered(!!reg);
-    if (!reg) { setLoading(false); return; }
+      const reg = await getMyRegistration(firebaseUser.uid, eventId);
+      setIsRegistered(!!reg);
+      if (!reg) return;
 
-    const mine = await getMyPost(eventId, firebaseUser.uid);
-    setMyPost(mine);
-    if (mine) {
-      setFormType(mine.type);
-      setFormMessage(mine.message);
+      const mine = await getMyPost(eventId, firebaseUser.uid);
+      setMyPost(mine);
+      if (mine) {
+        setFormType(mine.type);
+        setFormMessage(mine.message);
+      }
+
+      const all = await listPostsForEvent(eventId);
+      const blocked = studentProfile?.blockedUids || [];
+      setPosts(all.filter((p) => p.studentUid !== firebaseUser.uid && !blocked.includes(p.studentUid)));
+    } catch (err) {
+      setLoadError("Couldn't load team-finder — try refreshing.");
+    } finally {
+      setLoading(false);
     }
-
-    const all = await listPostsForEvent(eventId);
-    const blocked = studentProfile?.blockedUids || [];
-    setPosts(all.filter((p) => p.studentUid !== firebaseUser.uid && !blocked.includes(p.studentUid)));
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -61,9 +68,12 @@ export default function TeamFinder() {
   async function handlePost(e) {
     e.preventDefault();
     setPosting(true);
+    setLoadError('');
     try {
       await upsertMyPost(eventId, firebaseUser.uid, studentProfile?.name || 'A student', formType, formMessage);
       await load();
+    } catch (err) {
+      setLoadError("Couldn't save your card — try again.");
     } finally {
       setPosting(false);
     }
@@ -71,9 +81,14 @@ export default function TeamFinder() {
 
   async function handleWithdraw() {
     if (!myPost) return;
-    await withdrawMyPost(myPost.id);
-    setMyPost(null);
-    await load();
+    setLoadError('');
+    try {
+      await withdrawMyPost(myPost.id);
+      setMyPost(null);
+      await load();
+    } catch (err) {
+      setLoadError("Couldn't withdraw your card — try again.");
+    }
   }
 
   function handleBlocked(uid) {
@@ -116,6 +131,7 @@ export default function TeamFinder() {
           <h1 className="font-display text-2xl sm:text-3xl">Find a team</h1>
         </div>
         <p className="text-muted mb-6">For "{event.title}" — needs {event.teamSize} members.</p>
+        {loadError && <p className="text-signal text-sm mb-4">{loadError}</p>}
 
         {/* My card */}
         <div className="card p-5 mb-6">

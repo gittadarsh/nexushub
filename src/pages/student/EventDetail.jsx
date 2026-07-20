@@ -53,10 +53,6 @@ export default function EventDetail() {
       if (evt && firebaseUser) {
         const reg = await getStudentRegistration(firebaseUser.uid, eventId);
         setRegistration(reg);
-        if (!reg && evt.teamSize > 1) {
-          const blankSlots = Array.from({ length: evt.teamSize - 1 }, () => ({ name: '', rollNo: '' }));
-          setMembers([{ name: firebaseUser.displayName || '', rollNo: '' }, ...blankSlots]);
-        }
       }
       setLoading(false);
     }
@@ -102,6 +98,15 @@ export default function EventDetail() {
     } finally {
       setRegistering(false);
     }
+  }
+
+  function handleChooseFullTeam() {
+    setMembers((prev) => {
+      if (prev.length === event.teamSize) return prev;
+      const blankSlots = Array.from({ length: event.teamSize - 1 }, () => ({ name: '', rollNo: '' }));
+      return [{ name: firebaseUser?.displayName || '', rollNo: '' }, ...blankSlots];
+    });
+    setTeamChoice('full');
   }
 
   function updateMember(index, field, value) {
@@ -344,7 +349,7 @@ export default function EventDetail() {
                 ) : teamChoice === null ? (
                   <div className="space-y-2">
                     <p className="text-sm font-semibold mb-1">This event needs a team of {event.teamSize}.</p>
-                    <button onClick={() => setTeamChoice('full')} className="btn-primary w-full">
+                    <button onClick={handleChooseFullTeam} className="btn-primary w-full">
                       I have my full team — register everyone
                     </button>
                     <button onClick={handleRegisterClick} disabled={registering} className="btn-secondary w-full flex items-center justify-center gap-1.5">

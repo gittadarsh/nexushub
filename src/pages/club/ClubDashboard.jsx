@@ -29,6 +29,7 @@ export default function ClubDashboard() {
       <div className="flex gap-3 mb-8">
         <Link to="/club/post-event" className="btn-primary inline-block">+ Post an event</Link>
         <Link to="/club/doubts" className="btn-secondary inline-block">Student questions</Link>
+        <Link to="/club/profile" className="btn-secondary inline-block">Edit club profile</Link>
       </div>
 
       {loading ? (

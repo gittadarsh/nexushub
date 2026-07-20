@@ -12,9 +12,11 @@ import PostEvent from './pages/club/PostEvent';
 import ClubEventView from './pages/club/ClubEventView';
 import ClubPaymentQueue from './pages/club/ClubPaymentQueue';
 import ClubDoubts from './pages/club/ClubDoubts';
+import ClubProfileEdit from './pages/club/ClubProfileEdit';
 import EventDetail from './pages/student/EventDetail';
 import TeamFinder from './pages/student/TeamFinder';
 import ExploreSearch from './pages/student/ExploreSearch';
+import ClubProfile from './pages/student/ClubProfile';
 import Subscriptions from './pages/student/Subscriptions';
 import MyDoubts from './pages/student/MyDoubts';
 import AdminClubApprovals from './pages/admin/AdminClubApprovals';
@@ -30,6 +32,7 @@ export default function App() {
           <Route path="/my-doubts" element={<RequireStudent><MyDoubts /></RequireStudent>} />
           <Route path="/events/:eventId" element={<RequireStudent><EventDetail /></RequireStudent>} />
           <Route path="/events/:eventId/team-finder" element={<RequireStudent><TeamFinder /></RequireStudent>} />
+          <Route path="/clubs/:clubId" element={<RequireStudent><ClubProfile /></RequireStudent>} />
 
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<StudentSignup />} />
@@ -41,6 +44,7 @@ export default function App() {
           <Route path="/club/events/:eventId" element={<RequireClubAdmin><ClubEventView /></RequireClubAdmin>} />
           <Route path="/club/events/:eventId/payments" element={<RequireClubAdmin><ClubPaymentQueue /></RequireClubAdmin>} />
           <Route path="/club/doubts" element={<RequireClubAdmin><ClubDoubts /></RequireClubAdmin>} />
+          <Route path="/club/profile" element={<RequireClubAdmin><ClubProfileEdit /></RequireClubAdmin>} />
 
           <Route path="/admin/clubs" element={<RequireAuth><AdminClubApprovals /></RequireAuth>} />
         </Routes>

@@ -86,11 +86,19 @@ service cloud.firestore {
 
     // ── registrations/{id} ───────────────────────────────────────────
     // A student can create/read/update only their own registration.
-    // (Club-side visibility into who registered is a Phase 2 dashboard
-    // feature — not yet needed here, so not opened up broadly.)
+    // A club's own admin can additionally update ONLY paymentStatus, on
+    // any registration for one of their events — this is what powers
+    // the payment approval/rejection moderation queue.
     match /registrations/{id} {
       allow create: if isSignedIn() && request.resource.data.studentUid == request.auth.uid;
-      allow read, update: if isSignedIn() && resource.data.studentUid == request.auth.uid;
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.studentUid == request.auth.uid
+        || (
+          request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.adminUids
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus'])
+        )
+      );
       allow delete: if false;
     }
 
@@ -105,9 +113,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── teamFinderThreads/{id} + messages subcollection ─────────────
-    // Only the two participants of a thread can read it or send
-    // messages into it — this is the actual privacy boundary for DMs.
     match /teamFinderThreads/{threadId} {
       allow read: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participantUids);
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantUids;
