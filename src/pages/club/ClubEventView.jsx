@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Heart, Pencil, Trash2, Users } from 'lucide-react';
 import { getEvent, computeEventStatus, STATUS_LABELS, deleteEvent } from '../../services/events';
 import { listRegistrationsForEvent } from '../../services/registrations';
+import PaymentStatusBadge from '../../components/PaymentStatusBadge';
 
 export default function ClubEventView() {
   const { eventId } = useParams();
@@ -71,12 +72,27 @@ export default function ClubEventView() {
             >
               <Pencil size={13} /> Edit
             </Link>
+            <Link
+  to={`/club/events/${eventId}/payments`}
+  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-line text-ink hover:bg-line/70 ml-2"
+>
+  Payments
+</Link>
           </div>
           {error && <p className="text-signal text-xs mt-2">{error}</p>}
         </div>
       </div>
 
-      <p className="mt-6">{event.description}</p>
+     <p className="mt-6">{event.description}</p>
+
+{event.highlights?.length > 0 && (
+  <ul className="mt-4 text-sm space-y-1 list-disc list-inside text-ink/90">
+    {event.highlights.map((h, i) => <li key={i}>{h}</li>)}
+  </ul>
+)}
+{event.prizes && (
+  <p className="mt-3 text-sm font-semibold">🏆 {event.prizes}</p>
+)}
 
       <div className="mt-8 pt-6 border-t border-line">
         <h2 className="font-display text-xl mb-4 flex items-center gap-2">
@@ -98,9 +114,12 @@ export default function ClubEventView() {
                 </p>
                 <ul className="space-y-1.5">
                   {soloRegs.map((r) => (
-                    <li key={r.id} className="text-sm flex justify-between border-b border-line pb-1.5">
+                    <li key={r.id} className="text-sm flex justify-between items-center gap-2 border-b border-line pb-1.5">
                       <span>{r.studentName || 'Unnamed'}</span>
-                      <span className="text-muted">{r.rollNo}</span>
+                      <span className="flex items-center gap-2">
+                        <PaymentStatusBadge status={r.paymentStatus} />
+                        <span className="text-muted">{r.rollNo}</span>
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -115,7 +134,10 @@ export default function ClubEventView() {
                 <div className="space-y-3">
                   {teamRegs.map((r) => (
                     <div key={r.id} className="card p-3">
-                      <p className="font-semibold text-sm mb-1.5">{r.teamName}</p>
+                      <p className="font-semibold text-sm mb-1.5 flex items-center gap-2">
+                        {r.teamName}
+                        <PaymentStatusBadge status={r.paymentStatus} />
+                      </p>
                       <ul className="space-y-1">
                         {(r.members || []).map((m, i) => (
                           <li key={i} className="text-sm flex justify-between text-muted">

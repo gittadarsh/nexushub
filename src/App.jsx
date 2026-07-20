@@ -10,6 +10,7 @@ import PendingApproval from './pages/club/PendingApproval';
 import ClubDashboard from './pages/club/ClubDashboard';
 import PostEvent from './pages/club/PostEvent';
 import ClubEventView from './pages/club/ClubEventView';
+import ClubPaymentQueue from './pages/club/ClubPaymentQueue';
 import ClubDoubts from './pages/club/ClubDoubts';
 import EventDetail from './pages/student/EventDetail';
 import TeamFinder from './pages/student/TeamFinder';
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/club/dashboard" element={<RequireClubAdmin><ClubDashboard /></RequireClubAdmin>} />
           <Route path="/club/post-event" element={<RequireClubAdmin><PostEvent /></RequireClubAdmin>} />
           <Route path="/club/events/:eventId" element={<RequireClubAdmin><ClubEventView /></RequireClubAdmin>} />
+          <Route path="/club/events/:eventId/payments" element={<RequireClubAdmin><ClubPaymentQueue /></RequireClubAdmin>} />
           <Route path="/club/doubts" element={<RequireClubAdmin><ClubDoubts /></RequireClubAdmin>} />
 
           <Route path="/admin/clubs" element={<RequireAuth><AdminClubApprovals /></RequireAuth>} />

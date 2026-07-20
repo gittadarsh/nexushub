@@ -7,11 +7,10 @@ import { uploadPosterToCloudinary } from '../../services/cloudinary';
 const initialForm = {
   title: '', description: '', teamSize: 1, price: 0, venue: '',
   date: '', registrationDeadline: '', eligibility: '', capacity: '',
-  contactPersonName: '', highlightsText: '', prizes: ''
+  contactPersonName: '', highlightsText: '', prizes: '',
+  upiLink: '', whatsappGroupLink: ''
 };
 
-// Firestore Timestamps need converting to the 'YYYY-MM-DDTHH:mm' shape
-// datetime-local inputs expect.
 function toLocalInputValue(ts) {
   if (!ts) return '';
   const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -23,7 +22,7 @@ export default function PostEvent() {
   const { profile, firebaseUser } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const editId = searchParams.get('eventId'); // present only when editing
+  const editId = searchParams.get('eventId');
 
   const [form, setForm] = useState(initialForm);
   const [existingPosterUrl, setExistingPosterUrl] = useState('');
@@ -49,7 +48,9 @@ export default function PostEvent() {
         capacity: evt.capacity ?? '',
         contactPersonName: evt.contactPersonName || '',
         highlightsText: (evt.highlights || []).join('\n'),
-        prizes: evt.prizes || ''
+        prizes: evt.prizes || '',
+        upiLink: evt.upiLink || '',
+        whatsappGroupLink: evt.whatsappGroupLink || ''
       });
       setExistingPosterUrl(evt.posterUrl || '');
       setLoadingEvent(false);
@@ -176,6 +177,30 @@ export default function PostEvent() {
             <input className="input-field" type="number" min={0} value={form.price} onChange={update('price')} />
           </div>
         </div>
+
+        {Number(form.price) > 0 && (
+          <div className="space-y-3 p-4 rounded-card bg-line/40">
+            <p className="text-xs font-semibold text-muted">Shown to students only after their payment is approved</p>
+            <div>
+              <label className="block text-xs text-muted mb-1">Your UPI payment link</label>
+              <input
+                className="input-field"
+                placeholder="upi://pay?pa=... or a payment page link"
+                value={form.upiLink}
+                onChange={update('upiLink')}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">WhatsApp group invite link</label>
+              <input
+                className="input-field"
+                placeholder="https://chat.whatsapp.com/..."
+                value={form.whatsappGroupLink}
+                onChange={update('whatsappGroupLink')}
+              />
+            </div>
+          </div>
+        )}
 
         <input className="input-field" placeholder="Venue" required value={form.venue} onChange={update('venue')} />
 

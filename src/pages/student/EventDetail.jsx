@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Bell, BellRing, Heart, Users } from 'lucide-react';
+import { Bell, BellRing, Heart, Users, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { getEvent, computeEventStatus } from '../../services/events';
 import { getClub } from '../../services/clubs';
 import {
-  getStudentRegistration, registerForEvent, registerTeamForEvent, cancelRegistration
+  getStudentRegistration, registerForEvent, registerTeamForEvent,
+  cancelRegistration, submitPaymentProof
 } from '../../services/registrations';
 import { buildWhatsAppShareLink } from '../../services/likes';
+import { uploadPosterToCloudinary } from '../../services/cloudinary';
 import { useStudentProfile } from '../../hooks/useStudentProfile';
 import { useAuth } from '../../contexts/AuthContext';
 import StudentNav from '../../components/StudentNav';
 import StatusBadge from '../../components/StatusBadge';
 import RegistrationCountdown from '../../components/RegistrationCountdown';
 import ProfileCompletionGate from '../../components/ProfileCompletionGate';
+import TeamChatModal from '../../components/TeamChatModal';
 
 export default function EventDetail() {
   const { eventId } = useParams();
@@ -26,14 +29,17 @@ export default function EventDetail() {
   const [regError, setRegError] = useState('');
   const [registering, setRegistering] = useState(false);
   const [showProfileGate, setShowProfileGate] = useState(false);
+  const [showDoubtChat, setShowDoubtChat] = useState(false);
 
-  // For team events: null = hasn't chosen yet, 'full' = filling the team
-  // form, 'solo' = registering alone to find teammates via team-finder.
   const [teamChoice, setTeamChoice] = useState(null);
-
-  // Team registration form state
   const [teamName, setTeamName] = useState('');
   const [members, setMembers] = useState([]);
+
+  // Payment proof form state
+  const [transactionId, setTransactionId] = useState('');
+  const [screenshotFile, setScreenshotFile] = useState(null);
+  const [submittingProof, setSubmittingProof] = useState(false);
+  const [proofError, setProofError] = useState('');
 
   const {
     isSubscribed, toggleSubscribe, isLiked, toggleLike, studentProfile, loading: profileLoading, refresh
@@ -59,19 +65,11 @@ export default function EventDetail() {
 
   async function handleSubscribeClick() {
     setSubError('');
-    try {
-      await toggleSubscribe(club.id);
-    } catch (err) {
-      setSubError("Couldn't update — try again.");
-    }
+    try { await toggleSubscribe(club.id); } catch (err) { setSubError("Couldn't update — try again."); }
   }
 
   async function handleLikeClick() {
-    try {
-      await toggleLike(eventId);
-    } catch (err) {
-      // Like is a soft, low-stakes action — fail silently.
-    }
+    try { await toggleLike(eventId); } catch (err) { /* soft action, fail silently */ }
   }
 
   function handleShareClick() {
@@ -80,10 +78,7 @@ export default function EventDetail() {
 
   function handleRegisterClick() {
     setRegError('');
-    if (!studentProfile?.profileComplete) {
-      setShowProfileGate(true);
-      return;
-    }
+    if (!studentProfile?.profileComplete) { setShowProfileGate(true); return; }
     doSoloRegister();
   }
 
@@ -91,14 +86,16 @@ export default function EventDetail() {
     setRegistering(true);
     setRegError('');
     try {
+      const isPaid = event.price > 0;
       const regId = await registerForEvent({
         eventId,
         studentUid: firebaseUser.uid,
         clubId: event.clubId,
         studentName: studentProfile?.name || firebaseUser.displayName || 'Unnamed',
-        rollNo: studentProfile?.rollNo || ''
+        rollNo: studentProfile?.rollNo || '',
+        isPaid
       });
-      setRegistration({ id: regId, status: 'registered' });
+      setRegistration({ id: regId, status: 'registered', paymentStatus: isPaid ? 'pending_proof' : 'not_required' });
       setEvent((prev) => ({ ...prev, registeredCount: (prev.registeredCount || 0) + 1 }));
     } catch (err) {
       setRegError("Couldn't register — try again.");
@@ -114,26 +111,26 @@ export default function EventDetail() {
   async function handleTeamRegister(e) {
     e.preventDefault();
     setRegError('');
-
-    if (!teamName.trim()) {
-      setRegError('Give your team a name.');
-      return;
-    }
+    if (!teamName.trim()) { setRegError('Give your team a name.'); return; }
     if (members.some((m) => !m.name.trim() || !m.rollNo.trim())) {
       setRegError('Fill in name and roll number for every teammate.');
       return;
     }
-
     setRegistering(true);
     try {
+      const isPaid = event.price > 0;
       const regId = await registerTeamForEvent({
         eventId,
         studentUid: firebaseUser.uid,
         clubId: event.clubId,
         teamName: teamName.trim(),
-        members: members.map((m) => ({ name: m.name.trim(), rollNo: m.rollNo.trim() }))
+        members: members.map((m) => ({ name: m.name.trim(), rollNo: m.rollNo.trim() })),
+        isPaid
       });
-      setRegistration({ id: regId, status: 'registered', isTeam: true, teamName });
+      setRegistration({
+        id: regId, status: 'registered', isTeam: true, teamName,
+        paymentStatus: isPaid ? 'pending_proof' : 'not_required'
+      });
       setEvent((prev) => ({ ...prev, registeredCount: (prev.registeredCount || 0) + 1 }));
     } catch (err) {
       setRegError("Couldn't register — try again.");
@@ -157,13 +154,27 @@ export default function EventDetail() {
     }
   }
 
+  async function handleSubmitProof(e) {
+    e.preventDefault();
+    setProofError('');
+    if (!transactionId.trim()) {
+      setProofError('Transaction ID is required.');
+      return;
+    }
+    setSubmittingProof(true);
+    try {
+      const screenshotUrl = screenshotFile ? await uploadPosterToCloudinary(screenshotFile) : null;
+      await submitPaymentProof(registration.id, { transactionId: transactionId.trim(), screenshotUrl });
+      setRegistration((prev) => ({ ...prev, transactionId: transactionId.trim(), screenshotUrl, paymentStatus: 'pending_review' }));
+    } catch (err) {
+      setProofError("Couldn't submit — try again.");
+    } finally {
+      setSubmittingProof(false);
+    }
+  }
+
   if (loading) {
-    return (
-      <div className="min-h-screen bg-paper">
-        <StudentNav />
-        <p className="text-muted text-center mt-12">Loading…</p>
-      </div>
-    );
+    return <div className="min-h-screen bg-paper"><StudentNav /><p className="text-muted text-center mt-12">Loading…</p></div>;
   }
 
   if (!event) {
@@ -180,12 +191,11 @@ export default function EventDetail() {
 
   const status = computeEventStatus(event);
   const eventDate = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-  const deadline = event.registrationDeadline?.toDate
-    ? event.registrationDeadline.toDate()
-    : new Date(event.registrationDeadline);
+  const deadline = event.registrationDeadline?.toDate ? event.registrationDeadline.toDate() : new Date(event.registrationDeadline);
   const subscribed = club ? isSubscribed(club.id) : false;
   const liked = isLiked(eventId);
   const isTeamEvent = event.teamSize > 1;
+  const isPaidEvent = event.price > 0;
   const canRegister = status === 'open' || status === 'few_seats';
 
   return (
@@ -195,11 +205,7 @@ export default function EventDetail() {
       {showProfileGate && (
         <ProfileCompletionGate
           uid={firebaseUser.uid}
-          onComplete={async () => {
-            setShowProfileGate(false);
-            await refresh();
-            doSoloRegister();
-          }}
+          onComplete={async () => { setShowProfileGate(false); await refresh(); doSoloRegister(); }}
           onCancel={() => setShowProfileGate(false)}
         />
       )}
@@ -226,9 +232,7 @@ export default function EventDetail() {
                   <button
                     onClick={handleSubscribeClick}
                     disabled={profileLoading}
-                    className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition ${
-                      subscribed ? 'bg-line text-ink' : 'bg-ink text-paper hover:opacity-90'
-                    }`}
+                    className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition ${subscribed ? 'bg-line text-ink' : 'bg-ink text-paper hover:opacity-90'}`}
                   >
                     {subscribed ? <BellRing size={13} /> : <Bell size={13} />}
                     {subscribed ? 'Subscribed' : 'Subscribe'}
@@ -240,7 +244,6 @@ export default function EventDetail() {
             {subError && <p className="text-signal text-xs mb-2">{subError}</p>}
 
             <h1 className="font-display text-2xl sm:text-3xl mb-3">{event.title}</h1>
-
             {event.description && <p className="text-muted mb-4">{event.description}</p>}
 
             {event.highlights?.length > 0 && (
@@ -248,9 +251,7 @@ export default function EventDetail() {
                 {event.highlights.map((h, i) => <li key={i}>{h}</li>)}
               </ul>
             )}
-            {event.prizes && (
-              <p className="text-sm font-semibold mb-4">🏆 {event.prizes}</p>
-            )}
+            {event.prizes && <p className="text-sm font-semibold mb-4">🏆 {event.prizes}</p>}
 
             <div className="flex items-center gap-4 mb-5">
               <button onClick={handleLikeClick} className="flex items-center gap-1.5 text-sm">
@@ -260,30 +261,12 @@ export default function EventDetail() {
             </div>
 
             <dl className="grid grid-cols-2 gap-4 text-sm border-t border-line pt-5">
-              <div>
-                <dt className="text-muted mb-0.5">Date</dt>
-                <dd className="font-semibold">{isNaN(eventDate) ? '—' : format(eventDate, 'EEE, d MMM · h:mm a')}</dd>
-              </div>
-              <div>
-                <dt className="text-muted mb-0.5">Venue</dt>
-                <dd className="font-semibold">{event.venue}</dd>
-              </div>
-              <div>
-                <dt className="text-muted mb-0.5">Team size</dt>
-                <dd className="font-semibold">{isTeamEvent ? `${event.teamSize} members` : 'Solo'}</dd>
-              </div>
-              <div>
-                <dt className="text-muted mb-0.5">Entry fee</dt>
-                <dd className="font-semibold">{event.price > 0 ? `₹${event.price}` : 'Free'}</dd>
-              </div>
-              <div>
-                <dt className="text-muted mb-0.5">Eligibility</dt>
-                <dd className="font-semibold">{event.eligibility || 'Open to all'}</dd>
-              </div>
-              <div>
-                <dt className="text-muted mb-0.5">Registration closes</dt>
-                <dd className="font-semibold">{isNaN(deadline) ? '—' : format(deadline, 'd MMM, h:mm a')}</dd>
-              </div>
+              <div><dt className="text-muted mb-0.5">Date</dt><dd className="font-semibold">{isNaN(eventDate) ? '—' : format(eventDate, 'EEE, d MMM · h:mm a')}</dd></div>
+              <div><dt className="text-muted mb-0.5">Venue</dt><dd className="font-semibold">{event.venue}</dd></div>
+              <div><dt className="text-muted mb-0.5">Team size</dt><dd className="font-semibold">{isTeamEvent ? `${event.teamSize} members` : 'Solo'}</dd></div>
+              <div><dt className="text-muted mb-0.5">Entry fee</dt><dd className="font-semibold">{event.price > 0 ? `₹${event.price}` : 'Free'}</dd></div>
+              <div><dt className="text-muted mb-0.5">Eligibility</dt><dd className="font-semibold">{event.eligibility || 'Open to all'}</dd></div>
+              <div><dt className="text-muted mb-0.5">Registration closes</dt><dd className="font-semibold">{isNaN(deadline) ? '—' : format(deadline, 'd MMM, h:mm a')}</dd></div>
             </dl>
 
             {!registration && <RegistrationCountdown deadline={deadline} />}
@@ -296,27 +279,68 @@ export default function EventDetail() {
                   <button className="btn-primary w-full opacity-90" disabled>
                     ✓ Registered{registration.isTeam && registration.teamName ? ` — Team "${registration.teamName}"` : ''}
                   </button>
-                  {isTeamEvent && (
-                    <Link
-                      to={`/events/${eventId}/team-finder`}
-                      className="btn-secondary w-full mt-2 flex items-center justify-center gap-1.5 text-sm"
+
+                  {/* ── Payment status flow — only for paid events ── */}
+                  {isPaidEvent && registration.paymentStatus === 'pending_proof' && (
+                    <form onSubmit={handleSubmitProof} className="mt-4 p-4 rounded-card bg-line/40 space-y-3">
+                      <p className="text-sm font-semibold flex items-center gap-1.5"><Clock size={15} /> Payment needed</p>
+                      {event.upiLink && (
+                        <a href={event.upiLink} target="_blank" rel="noreferrer" className="btn-secondary w-full block text-center">
+                          Pay ₹{event.price}
+                        </a>
+                      )}
+                      <input className="input-field" placeholder="Transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
+                      <input type="file" accept="image/*" onChange={(e) => setScreenshotFile(e.target.files[0])} className="text-xs" />
+                      {proofError && <p className="text-signal text-xs">{proofError}</p>}
+                      <button className="btn-primary w-full" disabled={submittingProof}>
+                        {submittingProof ? 'Submitting…' : 'Submit payment proof'}
+                      </button>
+                    </form>
+                  )}
+
+                  {isPaidEvent && registration.paymentStatus === 'pending_review' && (
+                    <div className="mt-4 p-4 rounded-card bg-line/40 text-sm flex items-center gap-2">
+                      <Clock size={15} /> Waiting for {club?.name || 'the club'} to confirm your payment.
+                    </div>
+                  )}
+
+                  {isPaidEvent && registration.paymentStatus === 'rejected' && (
+                    <form onSubmit={handleSubmitProof} className="mt-4 p-4 rounded-card bg-signal/10 space-y-3">
+                      <p className="text-sm font-semibold text-signal flex items-center gap-1.5">
+                        <XCircle size={15} /> Payment couldn't be verified — resubmit
+                      </p>
+                      <input className="input-field" placeholder="Transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
+                      <input type="file" accept="image/*" onChange={(e) => setScreenshotFile(e.target.files[0])} className="text-xs" />
+                      {proofError && <p className="text-signal text-xs">{proofError}</p>}
+                      <button className="btn-primary w-full" disabled={submittingProof}>
+                        {submittingProof ? 'Submitting…' : 'Resubmit proof'}
+                      </button>
+                    </form>
+                  )}
+
+                {isPaidEvent && registration.paymentStatus === 'approved' && event.whatsappGroupLink && (
+                    
+                     <a href={event.whatsappGroupLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-4 p-4 rounded-card bg-green-100 text-green-800 text-sm flex items-center gap-2 justify-center font-semibold"
                     >
+                      <CheckCircle2 size={16} /> Payment confirmed — join the WhatsApp group
+                    </a>
+                  )}
+
+                  {isTeamEvent && (
+                    <Link to={`/events/${eventId}/team-finder`} className="btn-secondary w-full mt-2 flex items-center justify-center gap-1.5 text-sm">
                       <Users size={14} /> Find a team
                     </Link>
                   )}
-                  <button
-                    onClick={handleCancelClick}
-                    disabled={registering}
-                    className="text-xs text-muted underline w-full text-center mt-2"
-                  >
+                  <button onClick={handleCancelClick} disabled={registering} className="text-xs text-muted underline w-full text-center mt-2">
                     {registering ? 'Cancelling…' : 'Cancel registration'}
                   </button>
                 </>
               ) : isTeamEvent ? (
                 !canRegister ? (
-                  <button disabled className="btn-primary w-full opacity-50 cursor-not-allowed">
-                    Registration closed
-                  </button>
+                  <button disabled className="btn-primary w-full opacity-50 cursor-not-allowed">Registration closed</button>
                 ) : teamChoice === null ? (
                   <div className="space-y-2">
                     <p className="text-sm font-semibold mb-1">This event needs a team of {event.teamSize}.</p>
@@ -329,54 +353,47 @@ export default function EventDetail() {
                   </div>
                 ) : (
                   <form onSubmit={handleTeamRegister} className="space-y-3">
-                    <button type="button" onClick={() => setTeamChoice(null)} className="text-xs text-muted underline mb-1">
-                      ← Back
-                    </button>
+                    <button type="button" onClick={() => setTeamChoice(null)} className="text-xs text-muted underline mb-1">← Back</button>
                     <p className="text-sm font-semibold">Register your team ({event.teamSize} members)</p>
-                    <input
-                      className="input-field"
-                      placeholder="Team name"
-                      value={teamName}
-                      onChange={(e) => setTeamName(e.target.value)}
-                    />
+                    <input className="input-field" placeholder="Team name" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
                     {members.map((m, i) => (
                       <div key={i} className="grid grid-cols-2 gap-2">
-                        <input
-                          className="input-field"
-                          placeholder={i === 0 ? 'Your name' : `Member ${i + 1} name`}
-                          value={m.name}
-                          onChange={(e) => updateMember(i, 'name', e.target.value)}
-                        />
-                        <input
-                          className="input-field"
-                          placeholder="Roll number"
-                          value={m.rollNo}
-                          onChange={(e) => updateMember(i, 'rollNo', e.target.value)}
-                        />
+                        <input className="input-field" placeholder={i === 0 ? 'Your name' : `Member ${i + 1} name`} value={m.name} onChange={(e) => updateMember(i, 'name', e.target.value)} />
+                        <input className="input-field" placeholder="Roll number" value={m.rollNo} onChange={(e) => updateMember(i, 'rollNo', e.target.value)} />
                       </div>
                     ))}
-                    <button className="btn-primary w-full" disabled={registering}>
-                      {registering ? 'Registering…' : 'Register team'}
-                    </button>
+                    <button className="btn-primary w-full" disabled={registering}>{registering ? 'Registering…' : 'Register team'}</button>
                   </form>
                 )
               ) : (
                 <>
-                  <button
-                    onClick={handleRegisterClick}
-                    disabled={!canRegister || registering}
-                    className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
+                  <button onClick={handleRegisterClick} disabled={!canRegister || registering} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
                     {!canRegister ? 'Registration closed' : registering ? 'Registering…' : 'Register'}
                   </button>
-                  <p className="text-xs text-muted text-center mt-2">
-                    Doubts? {event.contactPersonName || 'the club'} will be reachable here once doubt resolution ships.
-                  </p>
+                  <button
+  onClick={() => setShowDoubtChat(true)}
+  className="text-xs text-muted underline w-full text-center mt-2"
+>
+  Have a doubt? Ask {event.contactPersonName || 'the club'}
+</button>
                 </>
               )}
             </div>
           </div>
         </div>
+        {showDoubtChat && event.contactPersonUid && (
+        <TeamChatModal
+          eventId={eventId}
+          myUid={firebaseUser.uid}
+          myName={studentProfile?.name || firebaseUser.displayName || 'Student'}
+          otherUid={event.contactPersonUid}
+          otherName={event.contactPersonName || 'Club contact'}
+          onClose={() => setShowDoubtChat(false)}
+          threadCollection="doubtThreads"
+          reportContext="doubt_resolution"
+          showBlock={false}
+        />
+      )}
       </div>
     </div>
   );

@@ -3,8 +3,6 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-/** Looks up whether a student (as themselves, or as a team leader) already
- * has a non-cancelled registration for this event. */
 export async function getStudentRegistration(studentUid, eventId) {
   const q = query(
     collection(db, 'registrations'),
@@ -16,14 +14,17 @@ export async function getStudentRegistration(studentUid, eventId) {
   return active ? { id: active.id, ...active.data() } : null;
 }
 
-// Alias kept for TeamFinder.jsx, which already imports this name.
 export const getMyRegistration = getStudentRegistration;
 
-/** Solo registration (teamSize === 1). Name/roll no are denormalized onto
- * the registration doc itself — clubs can't read the `students` collection
- * directly (that's locked to the owning student only), so this is how a
- * club actually sees who registered without opening up student privacy. */
-export async function registerForEvent({ eventId, studentUid, clubId, studentName, rollNo }) {
+/**
+ * paymentStatus lifecycle for paid events:
+ *   'not_required'  -> free event, nothing to track
+ *   'pending_proof' -> paid event, student hasn't submitted proof yet
+ *   'pending_review'-> proof submitted, waiting on club approval
+ *   'approved'      -> club confirmed payment, WhatsApp link unlocked
+ *   'rejected'      -> club rejected the proof; student can resubmit
+ */
+export async function registerForEvent({ eventId, studentUid, clubId, studentName, rollNo, isPaid }) {
   const docRef = await addDoc(collection(db, 'registrations'), {
     eventId,
     studentUid,
@@ -32,32 +33,49 @@ export async function registerForEvent({ eventId, studentUid, clubId, studentNam
     studentName,
     rollNo,
     status: 'registered',
+    paymentStatus: isPaid ? 'pending_proof' : 'not_required',
+    transactionId: null,
+    screenshotUrl: null,
     createdAt: serverTimestamp()
   });
   await updateDoc(doc(db, 'events', eventId), { registeredCount: increment(1) });
   return docRef.id;
 }
 
-/**
- * Team registration — one registration doc represents the whole team.
- * `studentUid` is the team leader (the signed-in account submitting this),
- * so existing per-student lookups (getStudentRegistration) still work.
- * `members` is [{ name, rollNo }, ...] filled in directly by the leader —
- * teammates don't each need their own NexusHub account for this to work.
- */
-export async function registerTeamForEvent({ eventId, studentUid, clubId, teamName, members }) {
+export async function registerTeamForEvent({ eventId, studentUid, clubId, teamName, members, isPaid }) {
   const docRef = await addDoc(collection(db, 'registrations'), {
     eventId,
     studentUid,
     clubId,
     isTeam: true,
     teamName,
-    members, // [{ name, rollNo }]
+    members,
     status: 'registered',
+    paymentStatus: isPaid ? 'pending_proof' : 'not_required',
+    transactionId: null,
+    screenshotUrl: null,
     createdAt: serverTimestamp()
   });
   await updateDoc(doc(db, 'events', eventId), { registeredCount: increment(1) });
   return docRef.id;
+}
+
+/** Student submits proof — moves pending_proof -> pending_review.
+ * Also allowed again after a rejection, to resubmit. */
+export async function submitPaymentProof(registrationId, { transactionId, screenshotUrl }) {
+  await updateDoc(doc(db, 'registrations', registrationId), {
+    transactionId,
+    screenshotUrl: screenshotUrl || null,
+    paymentStatus: 'pending_review'
+  });
+}
+
+/** Club-side: approve or reject a submitted proof. */
+export async function reviewPayment(registrationId, decision) {
+  // decision: 'approved' | 'rejected'
+  await updateDoc(doc(db, 'registrations', registrationId), {
+    paymentStatus: decision
+  });
 }
 
 export async function cancelRegistration(registrationId, eventId) {
@@ -65,9 +83,6 @@ export async function cancelRegistration(registrationId, eventId) {
   await updateDoc(doc(db, 'events', eventId), { registeredCount: increment(-1) });
 }
 
-/** Club-side: every (non-cancelled) registration for one of their events.
- * Sorted client-side (newest first) so this never needs a Firestore
- * composite index — fine at this scale. */
 export async function listRegistrationsForEvent(eventId) {
   const q = query(collection(db, 'registrations'), where('eventId', '==', eventId));
   const snap = await getDocs(q);
@@ -75,4 +90,10 @@ export async function listRegistrationsForEvent(eventId) {
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((r) => r.status !== 'cancelled')
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+}
+
+/** Club-side: only registrations awaiting a payment decision, across an event. */
+export async function listPendingPayments(eventId) {
+  const all = await listRegistrationsForEvent(eventId);
+  return all.filter((r) => r.paymentStatus === 'pending_review');
 }
