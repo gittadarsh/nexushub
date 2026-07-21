@@ -6,7 +6,7 @@ import { getEvent, computeEventStatus } from '../../services/events';
 import { getClub } from '../../services/clubs';
 import {
   getStudentRegistration, registerForEvent, registerTeamForEvent,
-  cancelRegistration, submitPaymentProof
+  cancelRegistration, submitPaymentProof, confirmWhatsappJoin
 } from '../../services/registrations';
 import { buildWhatsAppShareLink } from '../../services/likes';
 import { uploadPosterToCloudinary } from '../../services/cloudinary';
@@ -142,6 +142,13 @@ export default function EventDetail() {
     } finally {
       setRegistering(false);
     }
+  }
+
+  async function handleConfirmWhatsappJoin() {
+    try {
+      await confirmWhatsappJoin(registration.id);
+      setRegistration((prev) => ({ ...prev, whatsappJoinConfirmed: true }));
+    } catch (err) { /* soft action, fail silently */ }
   }
 
   async function handleCancelClick() {
@@ -324,14 +331,27 @@ export default function EventDetail() {
                   )}
 
                 {isPaidEvent && registration.paymentStatus === 'approved' && event.whatsappGroupLink && (
-                    
-                     <a href={event.whatsappGroupLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-4 p-4 rounded-card bg-green-100 text-green-800 text-sm flex items-center gap-2 justify-center font-semibold"
-                    >
-                      <CheckCircle2 size={16} /> Payment confirmed — join the WhatsApp group
-                    </a>
+                    registration.whatsappJoinConfirmed ? (
+                      <div className="mt-4 p-4 rounded-card bg-green-100 text-green-800 text-sm flex items-center gap-2 justify-center font-semibold">
+                        <CheckCircle2 size={16} /> You've joined the WhatsApp group
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-2">
+                        <a href={event.whatsappGroupLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-4 rounded-card bg-green-100 text-green-800 text-sm flex items-center gap-2 justify-center font-semibold"
+                        >
+                          <CheckCircle2 size={16} /> Payment confirmed — join the WhatsApp group
+                        </a>
+                        <button
+                          onClick={handleConfirmWhatsappJoin}
+                          className="text-xs text-muted underline w-full text-center"
+                        >
+                          Already joined? Confirm
+                        </button>
+                      </div>
+                    )
                   )}
 
                   {isTeamEvent && (

@@ -17,6 +17,7 @@ import EventDetail from './pages/student/EventDetail';
 import TeamFinder from './pages/student/TeamFinder';
 import ExploreSearch from './pages/student/ExploreSearch';
 import ClubProfile from './pages/student/ClubProfile';
+import StudentProfile from './pages/student/StudentProfile';
 import Subscriptions from './pages/student/Subscriptions';
 import MyDoubts from './pages/student/MyDoubts';
 import AdminClubApprovals from './pages/admin/AdminClubApprovals';
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
           <Route path="/explore" element={<RequireStudent><ExploreSearch /></RequireStudent>} />
           <Route path="/subscriptions" element={<RequireStudent><Subscriptions /></RequireStudent>} />
+          <Route path="/profile" element={<RequireStudent><StudentProfile /></RequireStudent>} />
           <Route path="/my-doubts" element={<RequireStudent><MyDoubts /></RequireStudent>} />
           <Route path="/events/:eventId" element={<RequireStudent><EventDetail /></RequireStudent>} />
           <Route path="/events/:eventId/team-finder" element={<RequireStudent><TeamFinder /></RequireStudent>} />

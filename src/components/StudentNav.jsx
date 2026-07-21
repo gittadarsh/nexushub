@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import { Home, Compass, Rss, LogOut, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useStudentProfile } from '../hooks/useStudentProfile';
 import { listenToMyDoubtThreads } from '../services/clubDoubts';
 
 const TABS = [
@@ -29,6 +30,7 @@ function TabLink({ to, label, icon: Icon, end }) {
 
 export default function StudentNav() {
   const { logout, firebaseUser } = useAuth();
+  const { studentProfile } = useStudentProfile();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -58,6 +60,15 @@ export default function StudentNav() {
               <span className="absolute -top-0.5 -right-0.5 bg-signal text-paper text-[10px] font-bold leading-none rounded-full min-w-[16px] h-4 px-1 grid place-items-center">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
+            )}
+          </Link>
+          <Link to="/profile" className="p-1 rounded-full hover:ring-2 hover:ring-line transition" title="Your profile">
+            {studentProfile?.photoUrl ? (
+              <img src={studentProfile.photoUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-line grid place-items-center text-xs font-semibold">
+                {studentProfile?.name?.[0] || '?'}
+              </div>
             )}
           </Link>
           <button onClick={logout} className="text-muted hover:text-ink transition p-2" title="Log out">

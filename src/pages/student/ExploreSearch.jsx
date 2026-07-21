@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { listAllEvents, computeEventStatus } from '../../services/events';
 import { listAllClubs } from '../../services/clubs';
+import { cloudinaryThumb } from '../../services/cloudinary';
 import StudentNav from '../../components/StudentNav';
 import EventCard from '../../components/EventCard';
 
@@ -93,7 +94,7 @@ export default function ExploreSearch() {
                     className="card p-4 flex flex-col items-center text-center gap-2 hover:border-ink transition"
                   >
                     {club.logoUrl ? (
-                      <img src={club.logoUrl} alt="" className="w-16 h-16 rounded-full object-cover border border-line" />
+                      <img src={cloudinaryThumb(club.logoUrl, 150)} alt="" className="w-16 h-16 rounded-full object-cover border border-line" />
                     ) : (
                       <div className="w-16 h-16 rounded-full bg-line grid place-items-center font-display text-xl">
                         {club.name?.[0] || '?'}

@@ -29,3 +29,13 @@ export async function uploadPosterToCloudinary(file) {
   const data = await response.json();
   return data.secure_url;
 }
+
+/**
+ * Builds a resized, auto-compressed version of a Cloudinary URL for
+ * display (e.g. gallery thumbnails) — cuts bandwidth per page view
+ * substantially vs. always loading the original upload.
+ */
+export function cloudinaryThumb(url, width = 400) {
+  if (!url || !url.includes('/upload/')) return url;
+  return url.replace('/upload/', `/upload/w_${width},q_auto,f_auto/`);
+}

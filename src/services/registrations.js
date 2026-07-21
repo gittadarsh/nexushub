@@ -78,6 +78,18 @@ export async function reviewPayment(registrationId, decision) {
   });
 }
 
+/**
+ * Student-side: confirms they've actually joined the WhatsApp group after
+ * tapping the link. Once confirmed, the join button is replaced with a
+ * plain confirmation elsewhere in the UI — keeps the registration screen
+ * from permanently nagging with a button that's already been used.
+ */
+export async function confirmWhatsappJoin(registrationId) {
+  await updateDoc(doc(db, 'registrations', registrationId), {
+    whatsappJoinConfirmed: true
+  });
+}
+
 export async function cancelRegistration(registrationId, eventId) {
   await updateDoc(doc(db, 'registrations', registrationId), { status: 'cancelled' });
   await updateDoc(doc(db, 'events', eventId), { registeredCount: increment(-1) });

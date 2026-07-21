@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getClub, updateClubProfile } from '../../services/clubs';
-import { uploadPosterToCloudinary } from '../../services/cloudinary';
+import { uploadPosterToCloudinary, cloudinaryThumb } from '../../services/cloudinary';
+import ImageCropModal from '../../components/ImageCropModal';
 
-const MAX_GALLERY = 6;
+const MAX_GALLERY = 12;
 
 export default function ClubProfileEdit() {
   const { profile } = useAuth();
@@ -14,6 +15,7 @@ export default function ClubProfileEdit() {
   const [existingLogoUrl, setExistingLogoUrl] = useState('');
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
+  const [pendingLogoFile, setPendingLogoFile] = useState(null);
   const [gallery, setGallery] = useState([]); // existing URLs + { file, preview } for new ones
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -40,9 +42,16 @@ export default function ClubProfileEdit() {
 
   function handleLogoChange(e) {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
-    setLogoFile(file);
-    setLogoPreview(URL.createObjectURL(file));
+    setPendingLogoFile(file);
+  }
+
+  function handleLogoCropped(blob) {
+    setPendingLogoFile(null);
+    if (!blob) return;
+    setLogoFile(blob);
+    setLogoPreview(URL.createObjectURL(blob));
   }
 
   function handleGalleryAdd(e) {
@@ -165,7 +174,7 @@ export default function ClubProfileEdit() {
             {gallery.map((item, i) => (
               <div key={i} className="relative w-20 h-20">
                 <img
-                  src={typeof item === 'string' ? item : item.preview}
+                  src={typeof item === 'string' ? cloudinaryThumb(item, 200) : item.preview}
                   alt=""
                   className="w-20 h-20 object-cover rounded-lg border border-line"
                 />
@@ -191,6 +200,14 @@ export default function ClubProfileEdit() {
           {submitting ? 'Saving…' : 'Save profile'}
         </button>
       </form>
+
+      {pendingLogoFile && (
+        <ImageCropModal
+          file={pendingLogoFile}
+          onCancel={() => setPendingLogoFile(null)}
+          onCropped={handleLogoCropped}
+        />
+      )}
     </div>
   );
 }

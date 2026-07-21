@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Rss, RssIcon } from 'lucide-react';
 import { getClub } from '../../services/clubs';
+import { cloudinaryThumb } from '../../services/cloudinary';
 import { listEventsForClub, computeEventStatus } from '../../services/events';
 import { useStudentProfile } from '../../hooks/useStudentProfile';
 import StudentNav from '../../components/StudentNav';
@@ -49,7 +50,7 @@ export default function ClubProfile() {
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-start gap-5">
           {club.logoUrl ? (
-            <img src={club.logoUrl} alt="" className="w-24 h-24 rounded-card object-cover border border-line shrink-0" />
+            <img src={cloudinaryThumb(club.logoUrl, 200)} alt="" className="w-24 h-24 rounded-card object-cover border border-line shrink-0" />
           ) : (
             <div className="w-24 h-24 rounded-card border border-line bg-line grid place-items-center text-2xl font-display shrink-0">
               {club.name?.[0] || '?'}
@@ -99,7 +100,7 @@ export default function ClubProfile() {
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted mb-3">Gallery</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               {club.galleryUrls.map((url, i) => (
-                <img key={i} src={url} alt="" className="w-full aspect-square object-cover rounded-lg border border-line" />
+                <img key={i} src={cloudinaryThumb(url, 400)} alt="" className="w-full aspect-square object-cover rounded-lg border border-line" />
               ))}
             </div>
           </div>

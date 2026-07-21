@@ -113,6 +113,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /teamFinderRequests/{id} {
+      allow read: if isSignedIn() && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.fromUid == request.auth.uid;
+      // Sender can only withdraw their own still-pending request.
+      // Recipient can only accept/decline it — neither side can touch
+      // any other field.
+      allow update: if isSignedIn() && (
+        (resource.data.fromUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'withdrawn')
+        || (resource.data.toUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status in ['accepted', 'declined'])
+      );
+      allow delete: if false;
+    }
+
     match /teamFinderThreads/{threadId} {
       allow read: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participantUids);
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantUids;

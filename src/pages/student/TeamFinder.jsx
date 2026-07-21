@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { Users, MessageCircle, Lock } from 'lucide-react';
+import { Users, MessageCircle, Lock, UserPlus, Check, X, Clock, Users2 } from 'lucide-react';
 import { getEvent } from '../../services/events';
 import { getMyRegistration } from '../../services/registrations';
 import { upsertMyPost, getMyPost, listPostsForEvent, withdrawMyPost } from '../../services/teamFinder';
+import { sendRequest, withdrawRequest, respondToRequest, listMyRequestsForEvent } from '../../services/teamFinderRequests';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStudentProfile } from '../../hooks/useStudentProfile';
 import StudentNav from '../../components/StudentNav';
@@ -31,6 +32,8 @@ export default function TeamFinder() {
   const [posting, setPosting] = useState(false);
 
   const [chatWith, setChatWith] = useState(null); // { uid, name }
+  const [outgoingRequests, setOutgoingRequests] = useState([]);
+  const [incomingRequests, setIncomingRequests] = useState([]);
 
   async function load() {
     setLoadError('');
@@ -44,15 +47,28 @@ export default function TeamFinder() {
       if (!reg) return;
 
       const mine = await getMyPost(eventId, firebaseUser.uid);
-      setMyPost(mine);
-      if (mine) {
-        setFormType(mine.type);
-        setFormMessage(mine.message);
+      // A withdrawn post is still the same Firestore doc (reused on the
+      // next repost) — but for every gating/display purpose here, it must
+      // be treated as "no active post." Without this check, reloading
+      // right after withdraw re-fetches the same doc and silently
+      // restores messaging access.
+      const activeMine = mine && mine.status === 'open' ? mine : null;
+      setMyPost(activeMine);
+      if (activeMine) {
+        setFormType(activeMine.type);
+        setFormMessage(activeMine.message);
+      } else {
+        setFormType('need_teammates');
+        setFormMessage('');
       }
 
       const all = await listPostsForEvent(eventId);
       const blocked = studentProfile?.blockedUids || [];
       setPosts(all.filter((p) => p.studentUid !== firebaseUser.uid && !blocked.includes(p.studentUid)));
+
+      const { outgoing, incoming } = await listMyRequestsForEvent(eventId, firebaseUser.uid);
+      setOutgoingRequests(outgoing);
+      setIncomingRequests(incoming.filter((r) => r.status === 'pending' && !blocked.includes(r.fromUid)));
     } catch (err) {
       setLoadError("Couldn't load team-finder — try refreshing.");
     } finally {
@@ -88,6 +104,43 @@ export default function TeamFinder() {
       await load();
     } catch (err) {
       setLoadError("Couldn't withdraw your card — try again.");
+    }
+  }
+
+  function outgoingRequestFor(uid) {
+    const mine = outgoingRequests.filter((r) => r.toUid === uid);
+    if (mine.some((r) => r.status === 'accepted')) return { status: 'accepted' };
+    const pending = mine.find((r) => r.status === 'pending');
+    return pending ? { status: 'pending', id: pending.id } : null;
+  }
+
+  async function handleSendRequest(otherUid, otherName) {
+    setLoadError('');
+    try {
+      await sendRequest(eventId, firebaseUser.uid, studentProfile?.name || 'A student', otherUid, otherName);
+      await load();
+    } catch (err) {
+      setLoadError("Couldn't send request — try again.");
+    }
+  }
+
+  async function handleCancelRequest(requestId) {
+    setLoadError('');
+    try {
+      await withdrawRequest(requestId);
+      await load();
+    } catch (err) {
+      setLoadError("Couldn't cancel request — try again.");
+    }
+  }
+
+  async function handleRespond(requestId, decision) {
+    setLoadError('');
+    try {
+      await respondToRequest(requestId, decision);
+      await load();
+    } catch (err) {
+      setLoadError("Couldn't respond — try again.");
     }
   }
 
@@ -171,6 +224,36 @@ export default function TeamFinder() {
           </form>
         </div>
 
+        {/* Incoming requests — need your response */}
+        {incomingRequests.length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-3">
+              Requests to team up ({incomingRequests.length})
+            </p>
+            <div className="space-y-2">
+              {incomingRequests.map((r) => (
+                <div key={r.id} className="card p-4 flex items-center justify-between gap-3">
+                  <p className="font-semibold text-sm">{r.fromName}</p>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => handleRespond(r.id, 'accepted')}
+                      className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1"
+                    >
+                      <Check size={13} /> Accept
+                    </button>
+                    <button
+                      onClick={() => handleRespond(r.id, 'declined')}
+                      className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1"
+                    >
+                      <X size={13} /> Decline
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Others' cards */}
         <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-3">
           Other students ({posts.length})
@@ -182,27 +265,51 @@ export default function TeamFinder() {
           </div>
         ) : (
           <div className="space-y-3">
-            {posts.map((p) => (
-              <div key={p.id} className="card p-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-sm">{p.studentName}</p>
-                  <span className="text-xs font-semibold text-muted">{TYPE_LABEL[p.type]}</span>
-                  {p.message && <p className="text-sm text-muted mt-1">{p.message}</p>}
+            {posts.map((p) => {
+              const req = myPost ? outgoingRequestFor(p.studentUid) : null;
+              return (
+                <div key={p.id} className="card p-4 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-sm">{p.studentName}</p>
+                    <span className="text-xs font-semibold text-muted">{TYPE_LABEL[p.type]}</span>
+                    {p.message && <p className="text-sm text-muted mt-1">{p.message}</p>}
+                  </div>
+                  {myPost ? (
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <button
+                        onClick={() => setChatWith({ uid: p.studentUid, name: p.studentName })}
+                        className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
+                      >
+                        <MessageCircle size={14} /> Message
+                      </button>
+                      {req?.status === 'accepted' ? (
+                        <span className="text-xs font-semibold text-green-700 flex items-center gap-1">
+                          <Users2 size={13} /> Matched
+                        </span>
+                      ) : req?.status === 'pending' ? (
+                        <button
+                          onClick={() => handleCancelRequest(req.id)}
+                          className="text-xs text-muted underline flex items-center gap-1"
+                        >
+                          <Clock size={12} /> Requested — cancel
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleSendRequest(p.studentUid, p.studentName)}
+                          className="text-xs font-semibold text-ink underline flex items-center gap-1"
+                        >
+                          <UserPlus size={13} /> Send request
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted flex items-center gap-1 shrink-0" title="Post your own card to unlock messaging">
+                      <Lock size={12} /> Post your card first
+                    </span>
+                  )}
                 </div>
-                {myPost ? (
-                  <button
-                    onClick={() => setChatWith({ uid: p.studentUid, name: p.studentName })}
-                    className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0"
-                  >
-                    <MessageCircle size={14} /> Message
-                  </button>
-                ) : (
-                  <span className="text-xs text-muted flex items-center gap-1 shrink-0" title="Post your own card to unlock messaging">
-                    <Lock size={12} /> Post your card first
-                  </span>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
