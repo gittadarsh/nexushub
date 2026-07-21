@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageCircle, Circle } from 'lucide-react';
-import { listMyDoubtThreads } from '../../services/clubDoubts';
+import { listenToMyDoubtThreads } from '../../services/clubDoubts';
 import { getEvent } from '../../services/events';
 import { getClub } from '../../services/clubs';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,9 +20,7 @@ export default function MyDoubts() {
   const [loading, setLoading] = useState(true);
   const [openThread, setOpenThread] = useState(null);
 
-  async function load() {
-    setLoading(true);
-    const raw = await listMyDoubtThreads(firebaseUser.uid);
+  async function enrichAndSet(raw) {
     const withDetails = await Promise.all(raw.map(async (t) => {
       const event = await getEvent(t.eventId);
       const club = event ? await getClub(event.clubId) : null;
@@ -44,7 +42,9 @@ export default function MyDoubts() {
   }
 
   useEffect(() => {
-    if (firebaseUser) load();
+    if (!firebaseUser) return;
+    const unsub = listenToMyDoubtThreads(firebaseUser.uid, enrichAndSet);
+    return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser]);
 
@@ -105,7 +105,7 @@ export default function MyDoubts() {
           myName="You"
           otherUid={openThread.contactUid}
           otherName={openThread.contactName}
-          onClose={() => { setOpenThread(null); load(); }}
+          onClose={() => setOpenThread(null)}
           threadCollection="doubtThreads"
           reportContext="doubt_resolution"
           showBlock={false}

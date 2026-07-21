@@ -125,6 +125,14 @@ service cloud.firestore {
         allow create: if isSignedIn()
           && request.resource.data.senderUid == request.auth.uid
           && request.auth.uid in get(/databases/$(database)/documents/teamFinderThreads/$(threadId)).data.participantUids;
+        // Edit: only the original sender, only within 15 minutes of
+        // sending (matches WhatsApp's edit window), only text + editedAt.
+        allow update: if isSignedIn()
+          && resource.data.senderUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'editedAt'])
+          && request.time < resource.data.createdAt + duration.value(15, 'm');
+        // Delete: genuine delete-for-everyone, sender only, no time limit.
+        allow delete: if isSignedIn() && resource.data.senderUid == request.auth.uid;
       }
     }
 
@@ -145,6 +153,11 @@ service cloud.firestore {
         allow create: if isSignedIn()
           && request.resource.data.senderUid == request.auth.uid
           && request.auth.uid in get(/databases/$(database)/documents/doubtThreads/$(threadId)).data.participantUids;
+        allow update: if isSignedIn()
+          && resource.data.senderUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'editedAt'])
+          && request.time < resource.data.createdAt + duration.value(15, 'm');
+        allow delete: if isSignedIn() && resource.data.senderUid == request.auth.uid;
       }
     }
 

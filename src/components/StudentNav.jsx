@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import { Home, Compass, Rss, LogOut, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { listMyDoubtThreads } from '../services/clubDoubts';
+import { listenToMyDoubtThreads } from '../services/clubDoubts';
 
 const TABS = [
   { to: '/', label: 'Home', icon: Home, end: true },
@@ -33,12 +33,13 @@ export default function StudentNav() {
 
   useEffect(() => {
     if (!firebaseUser) return;
-    listMyDoubtThreads(firebaseUser.uid).then((threads) => {
+    const unsub = listenToMyDoubtThreads(firebaseUser.uid, (threads) => {
       const count = threads.filter(
         (t) => !!t.lastMessageAt && !(t.readUids || []).includes(firebaseUser.uid)
       ).length;
       setUnreadCount(count);
     });
+    return unsub;
   }, [firebaseUser]);
 
   return (

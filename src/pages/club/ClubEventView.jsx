@@ -40,6 +40,7 @@ export default function ClubEventView() {
 
   const soloRegs = registrations.filter((r) => !r.isTeam);
   const teamRegs = registrations.filter((r) => r.isTeam);
+  const pendingPaymentCount = registrations.filter((r) => r.paymentStatus === 'pending_review').length;
 
   return (
     <div className="max-w-2xl mx-auto p-6">
@@ -74,9 +75,14 @@ export default function ClubEventView() {
             </Link>
             <Link
   to={`/club/events/${eventId}/payments`}
-  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-line text-ink hover:bg-line/70 ml-2"
+  className="relative inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-line text-ink hover:bg-line/70 ml-2"
 >
   Payments
+  {pendingPaymentCount > 0 && (
+    <span className="absolute -top-2 -right-2 bg-signal text-paper text-[10px] font-bold leading-none rounded-full min-w-[18px] h-[18px] px-1 grid place-items-center">
+      {pendingPaymentCount > 9 ? '9+' : pendingPaymentCount}
+    </span>
+  )}
 </Link>
           </div>
           {error && <p className="text-signal text-xs mt-2">{error}</p>}

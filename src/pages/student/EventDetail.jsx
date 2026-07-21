@@ -371,17 +371,18 @@ export default function EventDetail() {
                   </form>
                 )
               ) : (
-                <>
-                  <button onClick={handleRegisterClick} disabled={!canRegister || registering} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
-                    {!canRegister ? 'Registration closed' : registering ? 'Registering…' : 'Register'}
-                  </button>
-                  <button
-  onClick={() => setShowDoubtChat(true)}
-  className="text-xs text-muted underline w-full text-center mt-2"
->
-  Have a doubt? Ask {event.contactPersonName || 'the club'}
-</button>
-                </>
+                <button onClick={handleRegisterClick} disabled={!canRegister || registering} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
+                  {!canRegister ? 'Registration closed' : registering ? 'Registering…' : 'Register'}
+                </button>
+              )}
+
+              {event.contactPersonUid && (
+                <button
+                  onClick={() => setShowDoubtChat(true)}
+                  className="text-xs text-muted underline w-full text-center mt-2"
+                >
+                  Have a doubt? Ask {event.contactPersonName || 'the club'}
+                </button>
               )}
             </div>
           </div>

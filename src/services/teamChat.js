@@ -1,5 +1,5 @@
 import {
-  collection, addDoc, doc, setDoc, getDoc, updateDoc, query, orderBy, onSnapshot, serverTimestamp, arrayUnion
+  collection, addDoc, doc, setDoc, getDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp, arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -80,10 +80,34 @@ export function listenToMessages(threadId, callback, collectionName = 'teamFinde
   });
 }
 
-export async function reportUser(reporterUid, reportedUid, eventId, reason, context = 'team_finder') {
+/**
+ * Edits the sender's own message. Enforced server-side too (see
+ * firestore.rules) — only the original sender, only within 15 minutes of
+ * sending, matching WhatsApp's edit window.
+ */
+export async function editMessage(threadId, messageId, newText, collectionName = 'teamFinderThreads') {
+  await updateDoc(doc(db, collectionName, threadId, 'messages', messageId), {
+    text: newText.trim(),
+    editedAt: serverTimestamp()
+  });
+}
+
+/**
+ * Genuine delete-for-everyone — actually removes the document, not a
+ * hide-for-me flag. Only the original sender can do this (rules-enforced).
+ */
+export async function deleteMessage(threadId, messageId, collectionName = 'teamFinderThreads') {
+  await deleteDoc(doc(db, collectionName, threadId, 'messages', messageId));
+}
+
+export async function reportUser(reporterUid, reportedUid, eventId, reason, context = 'team_finder', messageSnapshot = null) {
   await addDoc(collection(db, 'reports'), {
     reporterUid, reportedUid, eventId, reason: reason || '',
     context,
+    // Captured at the moment the report is filed, so it survives even if
+    // the message is deleted afterward — a normal, never-reported delete
+    // leaves nothing behind.
+    messageSnapshot,
     createdAt: serverTimestamp()
   });
 }

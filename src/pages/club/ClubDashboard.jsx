@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { listEventsForClub, computeEventStatus, STATUS_LABELS } from '../../services/events';
+import { listenToMyDoubtThreads } from '../../services/clubDoubts';
 
 export default function ClubDashboard() {
-  const { profile, logout } = useAuth();
+  const { profile, logout, firebaseUser } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [unreadDoubts, setUnreadDoubts] = useState(0);
 
   useEffect(() => {
     if (!profile?.clubId) return;
@@ -15,6 +17,15 @@ export default function ClubDashboard() {
       setLoading(false);
     });
   }, [profile?.clubId]);
+
+  useEffect(() => {
+    if (!firebaseUser) return;
+    const unsub = listenToMyDoubtThreads(firebaseUser.uid, (threads) => {
+      const count = threads.filter((t) => !!t.lastMessageAt && !(t.readUids || []).includes(firebaseUser.uid)).length;
+      setUnreadDoubts(count);
+    });
+    return unsub;
+  }, [firebaseUser]);
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -28,7 +39,14 @@ export default function ClubDashboard() {
 
       <div className="flex gap-3 mb-8">
         <Link to="/club/post-event" className="btn-primary inline-block">+ Post an event</Link>
-        <Link to="/club/doubts" className="btn-secondary inline-block">Student questions</Link>
+        <Link to="/club/doubts" className="relative btn-secondary inline-block">
+          Student questions
+          {unreadDoubts > 0 && (
+            <span className="absolute -top-2 -right-2 bg-signal text-paper text-[10px] font-bold leading-none rounded-full min-w-[18px] h-[18px] px-1 grid place-items-center">
+              {unreadDoubts > 9 ? '9+' : unreadDoubts}
+            </span>
+          )}
+        </Link>
         <Link to="/club/profile" className="btn-secondary inline-block">Edit club profile</Link>
       </div>
 
