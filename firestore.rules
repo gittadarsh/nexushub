@@ -96,7 +96,18 @@ service cloud.firestore {
         resource.data.studentUid == request.auth.uid
         || (
           request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.adminUids
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus'])
+          && (
+            // Payment approval/rejection — existing permission.
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus'])
+            // Club-side correction of student-entered details — roll
+            // number, name, team name, or member roster — never
+            // paymentStatus, never team size (members array length is
+            // not checked here, so keep this admin-trusted, same trust
+            // level as payment approval already carries).
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+              ['studentName', 'rollNo', 'teamName', 'members', 'editedByAdminUid', 'editedAt']
+            )
+          )
         )
       );
       allow delete: if false;

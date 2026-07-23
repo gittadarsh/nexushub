@@ -291,6 +291,11 @@ export default function EventDetail() {
                   <button className="btn-primary w-full opacity-90" disabled>
                     ✓ Registered{registration.isTeam && registration.teamName ? ` — Team "${registration.teamName}"` : ''}
                   </button>
+                  {registration.editedAt?.toDate && (
+                    <p className="text-xs text-muted text-center mt-1.5">
+                      The club last updated your registration details on {format(registration.editedAt.toDate(), 'd MMM')}.
+                    </p>
+                  )}
 
                   {/* ── Payment status flow — only for paid events ── */}
                   {isPaidEvent && registration.paymentStatus === 'pending_proof' && (

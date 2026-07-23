@@ -95,6 +95,21 @@ export async function cancelRegistration(registrationId, eventId) {
   await updateDoc(doc(db, 'events', eventId), { registeredCount: increment(-1) });
 }
 
+/**
+ * Club-side only: correct a registrant's details (roll number typo,
+ * team-name fix, swapping one member for someone else) — never touches
+ * paymentStatus or team size. Stamped with who made the change and when,
+ * so a later dispute has a real record. Firestore rules restrict this to
+ * a member of the event's owning club, editing only these fields.
+ */
+export async function adminUpdateRegistration(registrationId, updates, adminUid) {
+  await updateDoc(doc(db, 'registrations', registrationId), {
+    ...updates,
+    editedByAdminUid: adminUid,
+    editedAt: serverTimestamp()
+  });
+}
+
 export async function listRegistrationsForEvent(eventId) {
   const q = query(collection(db, 'registrations'), where('eventId', '==', eventId));
   const snap = await getDocs(q);

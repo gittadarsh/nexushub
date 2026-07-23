@@ -1,26 +1,36 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Heart, Pencil, Trash2, Users } from 'lucide-react';
+import { format } from 'date-fns';
 import { getEvent, computeEventStatus, STATUS_LABELS, deleteEvent } from '../../services/events';
 import { listRegistrationsForEvent } from '../../services/registrations';
+import { useAuth } from '../../contexts/AuthContext';
 import PaymentStatusBadge from '../../components/PaymentStatusBadge';
+import EditRegistrationModal from '../../components/EditRegistrationModal';
 
 export default function ClubEventView() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const { firebaseUser } = useAuth();
   const [event, setEvent] = useState(null);
   const [registrations, setRegistrations] = useState([]);
   const [loadingRegs, setLoadingRegs] = useState(true);
   const [regError, setRegError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const [editingReg, setEditingReg] = useState(null);
 
-  useEffect(() => {
-    getEvent(eventId).then(setEvent);
+  function loadRegistrations() {
     listRegistrationsForEvent(eventId)
       .then(setRegistrations)
       .catch((err) => setRegError(err.message.replace('Firebase: ', '')))
       .finally(() => setLoadingRegs(false));
+  }
+
+  useEffect(() => {
+    getEvent(eventId).then(setEvent);
+    loadRegistrations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   async function handleDelete() {
@@ -120,12 +130,22 @@ export default function ClubEventView() {
                 </p>
                 <ul className="space-y-1.5">
                   {soloRegs.map((r) => (
-                    <li key={r.id} className="text-sm flex justify-between items-center gap-2 border-b border-line pb-1.5">
-                      <span>{r.studentName || 'Unnamed'}</span>
-                      <span className="flex items-center gap-2">
-                        <PaymentStatusBadge status={r.paymentStatus} />
-                        <span className="text-muted">{r.rollNo}</span>
-                      </span>
+                    <li key={r.id} className="text-sm border-b border-line pb-1.5">
+                      <div className="flex justify-between items-center gap-2">
+                        <span>{r.studentName || 'Unnamed'}</span>
+                        <span className="flex items-center gap-2">
+                          <PaymentStatusBadge status={r.paymentStatus} />
+                          <span className="text-muted">{r.rollNo}</span>
+                          <button onClick={() => setEditingReg(r)} className="text-muted hover:text-ink" title="Edit registration">
+                            <Pencil size={13} />
+                          </button>
+                        </span>
+                      </div>
+                      {r.editedAt?.toDate && (
+                        <p className="text-xs text-muted mt-0.5">
+                          Last edited by club on {format(r.editedAt.toDate(), 'd MMM, h:mm a')}
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -143,6 +163,9 @@ export default function ClubEventView() {
                       <p className="font-semibold text-sm mb-1.5 flex items-center gap-2">
                         {r.teamName}
                         <PaymentStatusBadge status={r.paymentStatus} />
+                        <button onClick={() => setEditingReg(r)} className="text-muted hover:text-ink ml-auto" title="Edit registration">
+                          <Pencil size={13} />
+                        </button>
                       </p>
                       <ul className="space-y-1">
                         {(r.members || []).map((m, i) => (
@@ -152,6 +175,11 @@ export default function ClubEventView() {
                           </li>
                         ))}
                       </ul>
+                      {r.editedAt?.toDate && (
+                        <p className="text-xs text-muted mt-2">
+                          Last edited by club on {format(r.editedAt.toDate(), 'd MMM, h:mm a')}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -171,6 +199,15 @@ export default function ClubEventView() {
           <Trash2 size={13} /> {deleting ? 'Deleting…' : 'Delete this event'}
         </button>
       </div>
+
+      {editingReg && (
+        <EditRegistrationModal
+          registration={editingReg}
+          adminUid={firebaseUser.uid}
+          onClose={() => setEditingReg(null)}
+          onSaved={() => { setEditingReg(null); loadRegistrations(); }}
+        />
+      )}
     </div>
   );
 }
