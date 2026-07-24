@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Heart, Pencil, Trash2, Users } from 'lucide-react';
+import { Heart, Pencil, Trash2, Users, FileDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { getEvent, computeEventStatus, STATUS_LABELS, deleteEvent } from '../../services/events';
 import { listRegistrationsForEvent } from '../../services/registrations';
+import { exportRegistrationsToExcel } from '../../services/exportRegistrations';
 import { useAuth } from '../../contexts/AuthContext';
 import PaymentStatusBadge from '../../components/PaymentStatusBadge';
 import EditRegistrationModal from '../../components/EditRegistrationModal';
@@ -17,8 +18,21 @@ export default function ClubEventView() {
   const [loadingRegs, setLoadingRegs] = useState(true);
   const [regError, setRegError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const [editingReg, setEditingReg] = useState(null);
+
+  async function handleExport() {
+    setExporting(true);
+    setError('');
+    try {
+      await exportRegistrationsToExcel(event, registrations);
+    } catch (err) {
+      setError("Couldn't generate the Excel file — try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function loadRegistrations() {
     listRegistrationsForEvent(eventId)
@@ -94,6 +108,13 @@ export default function ClubEventView() {
     </span>
   )}
 </Link>
+            <button
+              onClick={handleExport}
+              disabled={exporting || registrations.length === 0}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-line text-ink hover:bg-line/70 ml-2 disabled:opacity-40"
+            >
+              <FileDown size={13} /> {exporting ? 'Preparing…' : 'Download Excel'}
+            </button>
           </div>
           {error && <p className="text-signal text-xs mt-2">{error}</p>}
         </div>

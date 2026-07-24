@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getClub, updateClubProfile } from '../../services/clubs';
+import { getClub, updateClubProfile, deleteClub } from '../../services/clubs';
 import { uploadPosterToCloudinary, cloudinaryThumb } from '../../services/cloudinary';
 import ImageCropModal from '../../components/ImageCropModal';
 
 const MAX_GALLERY = 12;
 
 export default function ClubProfileEdit() {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const navigate = useNavigate();
 
+  const [clubName, setClubName] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ description: '', achievementsText: '', leadershipText: '' });
   const [existingLogoUrl, setExistingLogoUrl] = useState('');
   const [logoFile, setLogoFile] = useState(null);
@@ -25,6 +29,7 @@ export default function ClubProfileEdit() {
     if (!profile?.clubId) return;
     getClub(profile.clubId).then((club) => {
       if (!club) { setLoading(false); return; }
+      setClubName(club.name || '');
       setForm({
         description: club.description || '',
         achievementsText: (club.achievements || []).join('\n'),
@@ -100,6 +105,18 @@ export default function ClubProfileEdit() {
       setError(err.message.replace('Firebase: ', ''));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteClub() {
+    setDeleting(true);
+    try {
+      await deleteClub(profile.clubId);
+      await logout();
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(err.message.replace('Firebase: ', ''));
+      setDeleting(false);
     }
   }
 
@@ -200,6 +217,30 @@ export default function ClubProfileEdit() {
           {submitting ? 'Saving…' : 'Save profile'}
         </button>
       </form>
+
+      <div className="mt-10 pt-6 border-t border-signal/20">
+        <p className="text-xs font-semibold text-signal mb-2">Danger zone</p>
+        <p className="text-xs text-muted mb-3">
+          Permanently deletes {clubName || 'this club'} and every event it posted. Registrations students
+          already made stay on record but will no longer show anywhere in the app. This cannot be undone.
+        </p>
+        <p className="text-xs text-muted mb-1">
+          Type <span className="font-semibold text-ink">{clubName}</span> to confirm.
+        </p>
+        <input
+          className="input-field mb-2"
+          value={deleteConfirmText}
+          onChange={(e) => setDeleteConfirmText(e.target.value)}
+          placeholder={clubName}
+        />
+        <button
+          onClick={handleDeleteClub}
+          disabled={deleteConfirmText !== clubName || deleting}
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-signal/10 text-signal hover:bg-signal/20 disabled:opacity-40"
+        >
+          <Trash2 size={13} /> {deleting ? 'Deleting…' : 'Delete this club permanently'}
+        </button>
+      </div>
 
       {pendingLogoFile && (
         <ImageCropModal

@@ -61,7 +61,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isSignedIn() && request.auth.uid in resource.data.adminUids)
         || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount']));
-      allow delete: if false;
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid in resource.data.adminUids);
     }
 
     // ── events/{id} ──────────────────────────────────────────────────
@@ -81,10 +81,9 @@ service cloud.firestore {
           && request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.adminUids)
         || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['registeredCount']))
         || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount']));
-      allow delete: if false;
+      allow delete: if isSignedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.adminUids;
     }
-
-    // ── registrations/{id} ───────────────────────────────────────────
     // A student can create/read/update only their own registration.
     // A club's own admin can additionally update ONLY paymentStatus, on
     // any registration for one of their events — this is what powers
