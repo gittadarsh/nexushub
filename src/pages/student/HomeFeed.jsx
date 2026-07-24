@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listAllEvents, computeEventStatus } from '../../services/events';
 import { getClubsByIds } from '../../services/clubs';
+import { useStudentProfile } from '../../hooks/useStudentProfile';
 import StudentNav from '../../components/StudentNav';
 import EventCard from '../../components/EventCard';
 
@@ -14,6 +15,7 @@ export default function HomeFeed() {
   const [events, setEvents] = useState([]);
   const [clubsById, setClubsById] = useState({});
   const [loading, setLoading] = useState(true);
+  const { isBookmarked, toggleBookmark } = useStudentProfile();
 
   useEffect(() => {
     async function load() {
@@ -47,7 +49,13 @@ export default function HomeFeed() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {events.map((event) => (
-              <EventCard key={event.id} event={event} club={clubsById[event.clubId]} />
+              <EventCard
+                key={event.id}
+                event={event}
+                club={clubsById[event.clubId]}
+                bookmarked={isBookmarked(event.id)}
+                onToggleBookmark={toggleBookmark}
+              />
             ))}
           </div>
         )}

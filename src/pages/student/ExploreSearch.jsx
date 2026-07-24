@@ -6,6 +6,7 @@ import { listAllClubs } from '../../services/clubs';
 import { cloudinaryThumb } from '../../services/cloudinary';
 import StudentNav from '../../components/StudentNav';
 import EventCard from '../../components/EventCard';
+import { useStudentProfile } from '../../hooks/useStudentProfile';
 
 /**
  * Explore tab. Two jobs:
@@ -15,6 +16,7 @@ import EventCard from '../../components/EventCard';
  *    Each card links to /clubs/:id, the club's "about" page.
  */
 export default function ExploreSearch() {
+  const { isBookmarked, toggleBookmark } = useStudentProfile();
   const [events, setEvents] = useState([]);
   const [clubs, setClubs] = useState([]);
   const [query, setQuery] = useState('');
@@ -127,7 +129,13 @@ export default function ExploreSearch() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {results.map((event) => (
-                  <EventCard key={event.id} event={event} club={clubsById[event.clubId]} />
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    club={clubsById[event.clubId]}
+                    bookmarked={isBookmarked(event.id)}
+                    onToggleBookmark={toggleBookmark}
+                  />
                 ))}
               </div>
             )}

@@ -10,7 +10,7 @@ import EventCard from '../../components/EventCard';
 
 export default function ClubProfile() {
   const { clubId } = useParams();
-  const { isSubscribed, toggleSubscribe } = useStudentProfile();
+  const { isSubscribed, toggleSubscribe, isBookmarked, toggleBookmark } = useStudentProfile();
   const [club, setClub] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -115,7 +115,13 @@ export default function ClubProfile() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {events.map((event) => (
-                <EventCard key={event.id} event={event} club={club} />
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  club={club}
+                  bookmarked={isBookmarked(event.id)}
+                  onToggleBookmark={toggleBookmark}
+                />
               ))}
             </div>
           )}

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { subscribeToClub, unsubscribeFromClub } from '../services/subscriptions';
-import { likeEvent, unlikeEvent } from '../services/likes';
+import { likeEvent, unlikeEvent, bookmarkEvent, unbookmarkEvent } from '../services/likes';
 import { useAuth } from '../contexts/AuthContext';
 
 export function useStudentProfile() {
@@ -77,5 +77,36 @@ export function useStudentProfile() {
     }
   }
 
-  return { studentProfile, loading, isSubscribed, toggleSubscribe, isLiked, toggleLike, refresh };
+  const isBookmarked = useCallback(
+    (eventId) => !!studentProfile?.bookmarkedEvents?.includes(eventId),
+    [studentProfile]
+  );
+
+  async function toggleBookmark(eventId) {
+    if (!firebaseUser) return;
+    const currentlyBookmarked = isBookmarked(eventId);
+
+    setStudentProfile((prev) => ({
+      ...prev,
+      bookmarkedEvents: currentlyBookmarked
+        ? (prev.bookmarkedEvents || []).filter((id) => id !== eventId)
+        : [...(prev.bookmarkedEvents || []), eventId]
+    }));
+
+    try {
+      if (currentlyBookmarked) {
+        await unbookmarkEvent(firebaseUser.uid, eventId);
+      } else {
+        await bookmarkEvent(firebaseUser.uid, eventId);
+      }
+    } catch (err) {
+      await refresh();
+      throw err;
+    }
+  }
+
+  return {
+    studentProfile, loading, isSubscribed, toggleSubscribe, isLiked, toggleLike,
+    isBookmarked, toggleBookmark, refresh
+  };
 }

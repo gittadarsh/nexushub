@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Bell, BellRing, Heart, Users, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Bell, BellRing, Heart, Bookmark, Users, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { getEvent, computeEventStatus } from '../../services/events';
 import { getClub } from '../../services/clubs';
 import {
@@ -42,7 +42,7 @@ export default function EventDetail() {
   const [proofError, setProofError] = useState('');
 
   const {
-    isSubscribed, toggleSubscribe, isLiked, toggleLike, studentProfile, loading: profileLoading, refresh
+    isSubscribed, toggleSubscribe, isLiked, toggleLike, isBookmarked, toggleBookmark, studentProfile, loading: profileLoading, refresh
   } = useStudentProfile();
 
   useEffect(() => {
@@ -66,6 +66,10 @@ export default function EventDetail() {
 
   async function handleLikeClick() {
     try { await toggleLike(eventId); } catch (err) { /* soft action, fail silently */ }
+  }
+
+  async function handleBookmarkClick() {
+    try { await toggleBookmark(eventId); } catch (err) { /* soft action, fail silently */ }
   }
 
   function handleShareClick() {
@@ -206,6 +210,7 @@ export default function EventDetail() {
   const deadline = event.registrationDeadline?.toDate ? event.registrationDeadline.toDate() : new Date(event.registrationDeadline);
   const subscribed = club ? isSubscribed(club.id) : false;
   const liked = isLiked(eventId);
+  const bookmarked = isBookmarked(eventId);
   const isTeamEvent = event.teamSize > 1;
   const isPaidEvent = event.price > 0;
   const canRegister = status === 'open' || status === 'few_seats';
@@ -268,6 +273,9 @@ export default function EventDetail() {
             <div className="flex items-center gap-4 mb-5">
               <button onClick={handleLikeClick} className="flex items-center gap-1.5 text-sm">
                 <Heart size={18} className={liked ? 'fill-signal text-signal' : 'text-muted'} />
+              </button>
+              <button onClick={handleBookmarkClick} className="flex items-center gap-1.5 text-sm" title={bookmarked ? 'Remove from saved' : 'Save for later'}>
+                <Bookmark size={18} className={bookmarked ? 'fill-ink text-ink' : 'text-muted'} />
               </button>
               <button onClick={handleShareClick} className="text-sm text-muted underline">Share</button>
             </div>

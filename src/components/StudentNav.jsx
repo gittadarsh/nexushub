@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Home, Compass, Rss, LogOut, MessageCircle } from 'lucide-react';
+import { Home, Compass, Rss, Bookmark, LogOut, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStudentProfile } from '../hooks/useStudentProfile';
 import { listenToMyDoubtThreads } from '../services/clubDoubts';
@@ -8,7 +8,8 @@ import { listenToMyDoubtThreads } from '../services/clubDoubts';
 const TABS = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/explore', label: 'Explore', icon: Compass },
-  { to: '/subscriptions', label: 'Subscriptions', icon: Rss }
+  { to: '/subscriptions', label: 'Subscriptions', icon: Rss },
+  { to: '/saved', label: 'Saved', icon: Bookmark }
 ];
 
 function TabLink({ to, label, icon: Icon, end }) {

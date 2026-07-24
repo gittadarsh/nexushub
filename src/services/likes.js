@@ -31,3 +31,20 @@ export function buildWhatsAppShareLink(event) {
   const text = `${event.title} — check it out on NexusHub: ${url}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
+
+/**
+ * Bookmarks — same private-by-design pattern as likes: purely a
+ * personal "save for later" list on the student's own doc, no event-side
+ * counter, nothing visible to the club or anyone else.
+ */
+export async function bookmarkEvent(studentUid, eventId) {
+  await updateDoc(doc(db, 'students', studentUid), {
+    bookmarkedEvents: arrayUnion(eventId)
+  });
+}
+
+export async function unbookmarkEvent(studentUid, eventId) {
+  await updateDoc(doc(db, 'students', studentUid), {
+    bookmarkedEvents: arrayRemove(eventId)
+  });
+}
