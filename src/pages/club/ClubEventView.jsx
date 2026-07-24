@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Heart, Pencil, Trash2, Users, FileDown } from 'lucide-react';
+import { Heart, Pencil, Trash2, Users, FileDown, UserX } from 'lucide-react';
 import { format } from 'date-fns';
 import { getEvent, computeEventStatus, STATUS_LABELS, deleteEvent } from '../../services/events';
-import { listRegistrationsForEvent } from '../../services/registrations';
+import { listRegistrationsForEvent, removeRegistrationByClub } from '../../services/registrations';
 import { exportRegistrationsToExcel } from '../../services/exportRegistrations';
 import { useAuth } from '../../contexts/AuthContext';
 import PaymentStatusBadge from '../../components/PaymentStatusBadge';
@@ -21,6 +21,29 @@ export default function ClubEventView() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const [editingReg, setEditingReg] = useState(null);
+  const [removingId, setRemovingId] = useState(null);
+
+  /** The only remaining way a registration gets cancelled — students no
+   *  longer have a self-service cancel button (removed for the same
+   *  "no unilateral student control over registration state" reasoning
+   *  already applied to payment/edit actions). Same trust model as the
+   *  edit tool: gated behind the club, confirmed before acting, and
+   *  correctly decrements the event's registered count. */
+  async function handleRemove(reg) {
+    const who = reg.isTeam ? `Team "${reg.teamName}"` : (reg.studentName || 'this registrant');
+    if (!window.confirm(`Remove ${who} from this event? This can't be undone.`)) return;
+    setRemovingId(reg.id);
+    setError('');
+    try {
+      await removeRegistrationByClub(reg.id, eventId, firebaseUser.uid);
+      loadRegistrations();
+      setEvent((prev) => ({ ...prev, registeredCount: Math.max((prev.registeredCount || 1) - 1, 0) }));
+    } catch (err) {
+      setError("Couldn't remove — try again.");
+    } finally {
+      setRemovingId(null);
+    }
+  }
 
   async function handleExport() {
     setExporting(true);
@@ -160,6 +183,14 @@ export default function ClubEventView() {
                           <button onClick={() => setEditingReg(r)} className="text-muted hover:text-ink" title="Edit registration">
                             <Pencil size={13} />
                           </button>
+                          <button
+                            onClick={() => handleRemove(r)}
+                            disabled={removingId === r.id}
+                            className="text-muted hover:text-signal disabled:opacity-40"
+                            title="Remove registrant"
+                          >
+                            <UserX size={13} />
+                          </button>
                         </span>
                       </div>
                       {r.editedAt?.toDate && (
@@ -186,6 +217,14 @@ export default function ClubEventView() {
                         <PaymentStatusBadge status={r.paymentStatus} />
                         <button onClick={() => setEditingReg(r)} className="text-muted hover:text-ink ml-auto" title="Edit registration">
                           <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleRemove(r)}
+                          disabled={removingId === r.id}
+                          className="text-muted hover:text-signal disabled:opacity-40"
+                          title="Remove team"
+                        >
+                          <UserX size={13} />
                         </button>
                       </p>
                       <ul className="space-y-1">

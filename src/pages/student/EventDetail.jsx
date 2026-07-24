@@ -6,7 +6,7 @@ import { getEvent, computeEventStatus } from '../../services/events';
 import { getClub } from '../../services/clubs';
 import {
   getStudentRegistration, registerForEvent, registerTeamForEvent,
-  cancelRegistration, submitPaymentProof, confirmWhatsappJoin
+  submitPaymentProof, confirmWhatsappJoin
 } from '../../services/registrations';
 import { buildWhatsAppShareLink } from '../../services/likes';
 import { uploadPosterToCloudinary } from '../../services/cloudinary';
@@ -155,21 +155,6 @@ export default function EventDetail() {
     } catch (err) { /* soft action, fail silently */ }
   }
 
-  async function handleCancelClick() {
-    setRegError('');
-    setRegistering(true);
-    try {
-      await cancelRegistration(registration.id, eventId);
-      setRegistration(null);
-      setTeamChoice(null);
-      setEvent((prev) => ({ ...prev, registeredCount: Math.max((prev.registeredCount || 1) - 1, 0) }));
-    } catch (err) {
-      setRegError("Couldn't cancel — try again.");
-    } finally {
-      setRegistering(false);
-    }
-  }
-
   async function handleSubmitProof(e) {
     e.preventDefault();
     setProofError('');
@@ -296,9 +281,11 @@ export default function EventDetail() {
 
               {registration ? (
                 <>
-                  <button className="btn-primary w-full opacity-90" disabled>
-                    ✓ Registered{registration.isTeam && registration.teamName ? ` — Team "${registration.teamName}"` : ''}
-                  </button>
+                  {(!isPaidEvent || registration.paymentStatus === 'approved') && (
+                    <button className="btn-primary w-full opacity-90" disabled>
+                      ✓ Registered{registration.isTeam && registration.teamName ? ` — Team "${registration.teamName}"` : ''}
+                    </button>
+                  )}
                   {registration.editedAt?.toDate && (
                     <p className="text-xs text-muted text-center mt-1.5">
                       The club last updated your registration details on {format(registration.editedAt.toDate(), 'd MMM')}.
@@ -372,9 +359,6 @@ export default function EventDetail() {
                       <Users size={14} /> Find a team
                     </Link>
                   )}
-                  <button onClick={handleCancelClick} disabled={registering} className="text-xs text-muted underline w-full text-center mt-2">
-                    {registering ? 'Cancelling…' : 'Cancel registration'}
-                  </button>
                 </>
               ) : isTeamEvent ? (
                 !canRegister ? (

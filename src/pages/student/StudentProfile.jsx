@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStudentProfile } from '../../hooks/useStudentProfile';
 import { updateStudentPhoto, deleteStudentPhoto } from '../../services/students';
@@ -60,7 +61,8 @@ export default function StudentProfile() {
       <StudentNav />
 
       <div className="max-w-md mx-auto px-4 py-10">
-        <h1 className="font-display text-3xl mb-6">Your profile</h1>
+        <h1 className="font-display text-3xl mb-1">Your profile</h1>
+        <Link to="/my-recap" className="text-sm text-signal underline mb-6 inline-block">See your time on NexusHub →</Link>
 
         <div className="flex flex-col items-center mb-8">
           <button

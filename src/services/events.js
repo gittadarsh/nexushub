@@ -56,6 +56,17 @@ export async function getEvent(eventId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+/** Batch-fetches multiple events by id, mirrors getClubsByIds in clubs.js —
+ *  used by the recap page to resolve titles for a student's registered
+ *  and liked events without one round-trip per event. */
+export async function getEventsByIds(eventIds) {
+  const uniqueIds = [...new Set(eventIds)];
+  const results = await Promise.all(uniqueIds.map((id) => getEvent(id)));
+  const map = {};
+  results.forEach((evt) => { if (evt) map[evt.id] = evt; });
+  return map;
+}
+
 export async function listEventsForClub(clubId) {
   const q = query(collection(db, 'events'), where('clubId', '==', clubId), orderBy('createdAt', 'desc'));
   const snap = await getDocs(q);

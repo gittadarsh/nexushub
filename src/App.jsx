@@ -19,6 +19,7 @@ import ExploreSearch from './pages/student/ExploreSearch';
 import SavedEvents from './pages/student/SavedEvents';
 import ClubProfile from './pages/student/ClubProfile';
 import StudentProfile from './pages/student/StudentProfile';
+import MyRecap from './pages/student/MyRecap';
 import Subscriptions from './pages/student/Subscriptions';
 import MyDoubts from './pages/student/MyDoubts';
 import AdminClubApprovals from './pages/admin/AdminClubApprovals';
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/subscriptions" element={<RequireStudent><Subscriptions /></RequireStudent>} />
           <Route path="/saved" element={<RequireStudent><SavedEvents /></RequireStudent>} />
           <Route path="/profile" element={<RequireStudent><StudentProfile /></RequireStudent>} />
+          <Route path="/my-recap" element={<RequireStudent><MyRecap /></RequireStudent>} />
           <Route path="/my-doubts" element={<RequireStudent><MyDoubts /></RequireStudent>} />
           <Route path="/events/:eventId" element={<RequireStudent><EventDetail /></RequireStudent>} />
           <Route path="/events/:eventId/team-finder" element={<RequireStudent><TeamFinder /></RequireStudent>} />

@@ -52,3 +52,11 @@ export async function listPostsForEvent(eventId) {
 export async function withdrawMyPost(postId) {
   await updateDoc(doc(db, 'teamFinderPosts', postId), { status: 'withdrawn' });
 }
+
+/** All team-finder cards a student has ever posted, any event, any status
+ *  (open or withdrawn) — used by the recap page as an activity count. */
+export async function listMyPosts(studentUid) {
+  const q = query(collection(db, 'teamFinderPosts'), where('studentUid', '==', studentUid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}

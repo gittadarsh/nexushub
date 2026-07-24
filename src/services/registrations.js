@@ -96,6 +96,24 @@ export async function cancelRegistration(registrationId, eventId) {
 }
 
 /**
+ * Club-side only: removes a registrant. This is now the ONLY way a
+ * registration gets cancelled — students no longer have a self-service
+ * cancel button, matching the same "no unilateral student control over
+ * registration state" reasoning already applied to payment/edit actions.
+ * Stamped with who removed it and when, same accountability pattern as
+ * adminUpdateRegistration. Firestore rules restrict this to a member of
+ * the event's owning club.
+ */
+export async function removeRegistrationByClub(registrationId, eventId, adminUid) {
+  await updateDoc(doc(db, 'registrations', registrationId), {
+    status: 'cancelled',
+    removedByAdminUid: adminUid,
+    removedAt: serverTimestamp()
+  });
+  await updateDoc(doc(db, 'events', eventId), { registeredCount: increment(-1) });
+}
+
+/**
  * Club-side only: correct a registrant's details (roll number typo,
  * team-name fix, swapping one member for someone else) — never touches
  * paymentStatus or team size. Stamped with who made the change and when,
@@ -123,4 +141,16 @@ export async function listRegistrationsForEvent(eventId) {
 export async function listPendingPayments(eventId) {
   const all = await listRegistrationsForEvent(eventId);
   return all.filter((r) => r.paymentStatus === 'pending_review');
+}
+
+/** Every active registration a student has ever made, across all events —
+ *  used by the recap page. No date-range filtering (there's no
+ *  semester/date concept in the schema), so this is all-time by design. */
+export async function listRegistrationsForStudent(studentUid) {
+  const q = query(collection(db, 'registrations'), where('studentUid', '==', studentUid));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((r) => r.status !== 'cancelled')
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 }

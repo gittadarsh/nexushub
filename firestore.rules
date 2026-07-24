@@ -92,7 +92,14 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.studentUid == request.auth.uid;
       allow read: if isSignedIn();
       allow update: if isSignedIn() && (
-        resource.data.studentUid == request.auth.uid
+        // Student self-service — deliberately narrow: submitting/
+        // resubmitting payment proof and confirming a WhatsApp join.
+        // status is NOT in this list — students can no longer cancel
+        // their own registration; only the club can (see below).
+        (resource.data.studentUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ['transactionId', 'screenshotUrl', 'paymentStatus', 'whatsappJoinConfirmed']
+          ))
         || (
           request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.adminUids
           && (
@@ -105,6 +112,11 @@ service cloud.firestore {
             // level as payment approval already carries).
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(
               ['studentName', 'rollNo', 'teamName', 'members', 'editedByAdminUid', 'editedAt']
+            )
+            // Club removes a registrant entirely — the only remaining
+            // way a registration gets cancelled.
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+              ['status', 'removedByAdminUid', 'removedAt']
             )
           )
         )
