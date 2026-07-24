@@ -4,12 +4,15 @@ import { Rss, RssIcon } from 'lucide-react';
 import { getClub } from '../../services/clubs';
 import { cloudinaryThumb } from '../../services/cloudinary';
 import { listEventsForClub, computeEventStatus } from '../../services/events';
+import { markClubSeen } from '../../services/students';
+import { useAuth } from '../../contexts/AuthContext';
 import { useStudentProfile } from '../../hooks/useStudentProfile';
 import StudentNav from '../../components/StudentNav';
 import EventCard from '../../components/EventCard';
 
 export default function ClubProfile() {
   const { clubId } = useParams();
+  const { firebaseUser } = useAuth();
   const { isSubscribed, toggleSubscribe, isBookmarked, toggleBookmark } = useStudentProfile();
   const [club, setClub] = useState(null);
   const [events, setEvents] = useState([]);
@@ -27,7 +30,13 @@ export default function ClubProfile() {
       setLoading(false);
     }
     load();
-  }, [clubId]);
+    // Checking in on a club's page is what clears its "new activity" dot
+    // back in Subscriptions — a soft, best-effort stamp, not critical
+    // enough to block the page or show an error if it fails.
+    if (firebaseUser) {
+      markClubSeen(firebaseUser.uid, clubId).catch(() => {});
+    }
+  }, [clubId, firebaseUser]);
 
   async function handleSubscribe() {
     setSubBusy(true);
